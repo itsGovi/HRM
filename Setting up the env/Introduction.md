@@ -8,7 +8,7 @@ Setting up a seamless environment for data analysis and database management take
 Recommendation: I strongly suggest installing Python 3.11. After countless hours (around 60, even working through weekends) troubleshooting compatibility issues, I found that Python 3.11 strikes a good balance between compatibility with essential data visualization libraries and stability. As of 2024 and likely through 2025, this version should be compatible with most libraries needed for data analysis. Avoid Python 3.12 or 3.13 for now, as several visualization and database libraries may not fully support these versions yet.
 
 2. Install PostgreSQL
-Database Setup: PostgreSQL will serve as the backbone of our database system. If you’re new to data analytics or data science, I recommend this YouTube tutorial. It covers about 90% of practical SQL usage and introduces some advanced topics, which could be helpful for future projects.
+Database Setup: PostgreSQL will serve as the backbone of our database system. If you’re new to data analytics or data science, I recommend this [YouTube tutorial](https://youtu.be/85pG_pDkITY?si=V0DzvXep8gzjum-j). It covers about 90% of practical SQL usage and introduces some advanced topics, which could be helpful for future projects.
 
 3. Install Visual Studio Code (VS Code)
 Code Editor: VS Code is a versatile editor that can be set up specifically for data analysis and database management. Numerous online tutorials guide you through setting it up for Data Analysis/Data Science (DA/DS) work. This includes installing all necessary libraries, though I’ll provide a list of essential ones below.
