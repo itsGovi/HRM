@@ -1,7 +1,7 @@
 -- Create departments table
 CREATE TABLE departments (
     department_id SERIAL PRIMARY KEY,
-    department_name VARCHAR(100) NOT NULL,
+    department_name VARCHAR(100) NOT NULL UNIQUE,  -- Added UNIQUE constraint
     location VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -10,7 +10,7 @@ CREATE TABLE departments (
 -- Create positions table
 CREATE TABLE positions (
     position_id SERIAL PRIMARY KEY,
-    position_title VARCHAR(100) NOT NULL,
+    position_title VARCHAR(100) NOT NULL UNIQUE,  -- Added UNIQUE constraint
     min_salary DECIMAL(10,2),
     max_salary DECIMAL(10,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -37,7 +37,7 @@ CREATE TABLE employees (
 -- Create skills table
 CREATE TABLE skills (
     skill_id SERIAL PRIMARY KEY,
-    skill_name VARCHAR(100) NOT NULL,
+    skill_name VARCHAR(100) NOT NULL UNIQUE,  -- Added UNIQUE constraint
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -64,6 +64,14 @@ CREATE TABLE leave_requests (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create indexes for better query performance
+CREATE INDEX idx_employees_department ON employees(department_id);
+CREATE INDEX idx_employees_position ON employees(position_id);
+CREATE INDEX idx_employees_manager ON employees(manager_id);
+CREATE INDEX idx_leave_requests_employee ON leave_requests(employee_id);
+CREATE INDEX idx_employee_skills_skill ON employee_skills(skill_id);
+CREATE INDEX idx_employee_skills_employee ON employee_skills(employee_id);
 
 -- Create function to update timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
