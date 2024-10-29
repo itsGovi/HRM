@@ -1,0 +1,9 @@
+# Hi, This is a quick intro about me and background of how this project came to exist
+
+I’m a 19-year-old intern, tasked with creating a Database Management System (DBMS) for a small startup. I joined this internship not because I had extensive experience, but because the only requirements were curiosity and a willingness to learn. For me, this opportunity was a chance to carve my own path toward becoming a generalist—a valuable skill in what I call the "digital renaissance," where being a specialist might soon be the role of AI.
+
+When I started, I could have taken the simple route and built a basic DBMS with local accessibility using any SQL tool (I chose PostgreSQL). There are countless tutorials for setting up such systems, and while that would’ve been a good entry point, it felt limiting. I wanted to go further—create something unique, beyond beginner-level database administration, with remote and collaborative access integrated into a streamlined workflow.
+
+I searched online, but I couldn’t find tutorials or guides that took a personal DBMS project to the level I had in mind without using an external API. So, I decided to dive deep and build a solution from scratch that integrates PostgreSQL, Visual Studio Code, and GitHub, creating an environment where the database can be managed and version-controlled seamlessly.
+
+This setup guide documents my journey and everything I did to bridge these tools together. By sharing it, I hope that anyone else—especially beginners—can follow along, learn, and even improve on this integration.
