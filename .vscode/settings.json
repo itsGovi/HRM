@@ -7,7 +7,8 @@
             "driver": "PostgreSQL",
             "name": "HRM",
             "database": "hr_resource_db",
-            "username": "postgres"
+            "username": "postgres",
+            "password": "1234"
         }
     ],
     "sqltools.useNodeRuntime": false,
