@@ -9,10 +9,11 @@ DB_USER="postgres"
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
 
-# Get the date range for the current week
-WEEK_START=$(date -d "monday" +%Y-%m-%d)
-WEEK_END=$(date -d "sunday" +%Y-%m-%d)
+# Correct the weekly date range to cover Monday to Sunday
+WEEK_START=$(date -d 'last-monday' +%Y-%m-%d)
+WEEK_END=$(date -d "$WEEK_START +6 days" +%Y-%m-%d)
 FILE_NAME="${WEEK_START}_to_${WEEK_END}.sql"
+CURRENT_DATE=$(date '+%Y-%m-%d')
 
 # Function to get the last backup date
 get_last_backup_date() {
@@ -26,21 +27,16 @@ get_last_backup_date() {
 # Get last backup date
 LAST_BACKUP=$(get_last_backup_date)
 
-# Create the backup file with header comments
-cat > "$BACKUP_DIR/$FILE_NAME" << EOF
--- Incremental Backup
--- Period: $WEEK_START to $WEEK_END
--- Generated: $(date '+%Y-%m-%d %H:%M:%S')
--- Only includes changes since: $LAST_BACKUP
-
-BEGIN;
-
-EOF
+# Check if today's changes have already been recorded in this week's file
+if ! grep -q "### Changes for $CURRENT_DATE ###" "$BACKUP_DIR/$FILE_NAME"; then
+    # Add a daily header for today's changes if it doesn't already exist
+    echo -e "\n\n### Changes for $CURRENT_DATE ###" >> "$BACKUP_DIR/$FILE_NAME"
+fi
 
 # Function to backup modified data from a table
 backup_modified_table() {
     local table=$1
-    echo "-- Modified records in $table" >> "$BACKUP_DIR/$FILE_NAME"
+    echo "-- Modified records in $table on $CURRENT_DATE" >> "$BACKUP_DIR/$FILE_NAME"
     
     pg_dump -U "$DB_USER" -d "$DB_NAME" \
         --data-only \
@@ -56,29 +52,14 @@ for table in "${tables[@]}"; do
     backup_modified_table "$table"
 done
 
-# Add transaction commit
+# Add a commit statement to finalize the transaction block
 echo "COMMIT;" >> "$BACKUP_DIR/$FILE_NAME"
 
-# Update last backup date
+# Update last backup date for future reference
 date '+%Y-%m-%d %H:%M:%S' > "$BACKUP_DIR/last_backup_date"
 
 # Remove PGPASSWORD from environment
 unset PGPASSWORD
 
-# Create a summary file
-cat > "$BACKUP_DIR/${FILE_NAME%.sql}_summary.txt" << EOF
-Backup Summary
--------------
-Date Range: $WEEK_START to $WEEK_END
-Generated: $(date '+%Y-%m-%d %H:%M:%S')
-Previous Backup: $LAST_BACKUP
-
-Modified Records:
-$(for table in "${tables[@]}"; do
-    count=$(grep -c "INSERT INTO $table" "$BACKUP_DIR/$FILE_NAME" || echo "0")
-    echo "- $table: $count records"
-done)
-EOF
-
-echo "Weekly incremental backup completed successfully!"
-echo "Backup files saved in: $BACKUP_DIR"
+# Confirmation message
+echo "Incremental backup completed for $CURRENT_DATE and saved in $FILE_NAME."
