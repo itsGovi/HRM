@@ -30,4 +30,4 @@ Here are the primary libraries you'll need to get started. Adjust versions accor
 Note: Always check compatibility with Python 3.11 and aim to use the latest stable versions within that range for optimal performance.
 
 5. Create a "Progress_Journal" Folder
-Purpose: Track your learning process and mistakes in this folder. This log will help you avoid repeating errors. After all, “One should make original mistakes. Original mistakes might make you look foolish, but making the same mistake more than once is just plain dumb!” — Govardhan Yadav (me).
+Purpose: Track your learning process and mistakes in this folder. This log will help you avoid repeating errors. After all, **_“One should make original mistakes. Original mistakes might make you look foolish, but making the same mistake more than once is just plain dumb!”_ — Govardhan Yadav (me).**
