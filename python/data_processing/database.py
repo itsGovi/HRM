@@ -1,5 +1,6 @@
 # database.py
 import os
+from psutil import net_connections
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 
@@ -18,6 +19,3 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NA
 
 # Create a database engine
 engine = create_engine(DATABASE_URL)
-
-if __name__ == "__main__":
-    test_connection()
