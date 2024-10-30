@@ -19,13 +19,5 @@ DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NA
 # Create a database engine
 engine = create_engine(DATABASE_URL)
 
-# Test the connection
-def test_connection():
-    try:
-        with engine.connect() as connection:
-            print("Connection to PostgreSQL successful!")
-    except Exception as e:
-        print("Connection failed:", e)
-
 if __name__ == "__main__":
     test_connection()
