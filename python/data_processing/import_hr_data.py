@@ -1,8 +1,7 @@
-import pandas as pd
 import psycopg2
-from psycopg2.extras import execute_batch
+import pandas as pd
+import json
 from datetime import datetime
-import numpy as np
 
 def get_db_connection():
     """Create a connection to the PostgreSQL database."""
@@ -14,117 +13,136 @@ def get_db_connection():
         port="5432"
     )
 
-def clean_salary(salary_str):
-    """Clean salary values by removing currency symbols and converting to float."""
-    if pd.isna(salary_str):
-        return 0.0
-    if isinstance(salary_str, str):
-        return float(salary_str.replace('$', '').replace(',', ''))
-    return float(salary_str)
-
 def import_hr_data(file_path):
-    """Import HR data from Excel file into PostgreSQL database."""
-    # Read the Excel file
-    print("Reading Excel file...")
-    df = pd.read_excel(file_path)
+    """Import HR data from JSON file into PostgreSQL database."""
+    # Load JSON file
+    print("Loading JSON data...")
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+    df = pd.DataFrame(data)
     
     # Connect to database
     conn = get_db_connection()
     cur = conn.cursor()
-    
+
     try:
-        # 1. Import departments
-        print("Importing departments...")
-        departments = pd.DataFrame(df['Department'].unique(), columns=['department_name'])
-        for _, row in departments.iterrows():
-            cur.execute("""
-                INSERT INTO departments (department_name)
-                VALUES (%s)
-                ON CONFLICT (department_name) DO NOTHING
-                RETURNING department_id
-                """, (row['department_name'],))
-            conn.commit()  # Commit after each department
-        
-        # 2. Import positions
-        print("Importing positions...")
-        positions = pd.DataFrame(df['Position'].unique(), columns=['position_title'])
-        for _, row in positions.iterrows():
-            cur.execute("""
-                INSERT INTO positions (position_title, min_salary, max_salary)
-                VALUES (%s, 0, 0)
-                ON CONFLICT (position_title) DO NOTHING
-                RETURNING position_id
-                """, (row['position_title'],))
-            conn.commit()  # Commit after each position
-        
-        # 3. Import employees
-        print("Importing employees...")
-        
-        # Create a mapping of department names to IDs
-        cur.execute("SELECT department_id, department_name FROM departments")
-        dept_mapping = dict(cur.fetchall())
-        
-        # Create a mapping of position titles to IDs
-        cur.execute("SELECT position_id, position_title FROM positions")
-        pos_mapping = dict(cur.fetchall())
-        
-        # Process each employee
+        # Create the comprehensive EmployeeInfo table
+        print("Creating the EmployeeInfo table...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS EmployeeInfo (
+                emp_id INT PRIMARY KEY,
+                employee_name VARCHAR(100),
+                department VARCHAR(50),
+                position VARCHAR(50),
+                hire_date DATE,
+                termination_date DATE,
+                term_reason VARCHAR(100),
+                salary FLOAT,
+                employment_status VARCHAR(50),
+                gender VARCHAR(10),
+                age INT,
+                race VARCHAR(50),
+                marital_status VARCHAR(20),
+                state VARCHAR(2),
+                zip_code INT,
+                engagement_survey FLOAT,
+                emp_satisfaction INT,
+                special_projects_count INT,
+                last_performance_review DATE,
+                days_late_last_30 INT,
+                absences INT
+            )
+        """)
+        conn.commit()
+
+        # Insert data into the EmployeeInfo table
+        print("Inserting data into EmployeeInfo table...")
         for _, row in df.iterrows():
-            try:
-                # Split name into first and last name
-                full_name = row['Employee_Name'].split(',') if ',' in row['Employee_Name'] else row['Employee_Name'].split()
-                last_name = full_name[0].strip()
-                first_name = full_name[1].strip() if len(full_name) > 1 else ''
-                
-                # Clean and prepare data
-                email = f"{first_name.lower()}.{last_name.lower()}@company.com".replace(' ', '')
-                hire_date = pd.to_datetime(row.get('DateofHire')).date() if pd.notnull(row.get('DateofHire')) else datetime.now().date()
-                salary = clean_salary(row.get('Salary', 0))
-                
-                # Insert employee
-                cur.execute("""
-                    INSERT INTO employees (
-                        first_name, last_name, email, hire_date,
-                        department_id, position_id, salary, status
-                    )
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (email) 
-                    DO UPDATE SET
-                        first_name = EXCLUDED.first_name,
-                        last_name = EXCLUDED.last_name,
-                        hire_date = EXCLUDED.hire_date,
-                        department_id = EXCLUDED.department_id,
-                        position_id = EXCLUDED.position_id,
-                        salary = EXCLUDED.salary
-                    """,
-                    (
-                        first_name,
-                        last_name,
-                        email,
-                        hire_date,
-                        dept_mapping.get(row['Department']),
-                        pos_mapping.get(row['Position']),
-                        salary,
-                        'ACTIVE'
-                    )
+            hire_date = pd.to_datetime(row.get('DateofHire'), errors='coerce').date() if pd.notnull(row.get('DateofHire')) else None
+            term_date = pd.to_datetime(row.get('DateofTermination'), errors='coerce').date() if pd.notnull(row.get('DateofTermination')) else None
+            last_review = pd.to_datetime(row.get('LastPerformanceReview_Date'), errors='coerce').date() if pd.notnull(row.get('LastPerformanceReview_Date')) else None
+
+            cur.execute("""
+                INSERT INTO EmployeeInfo (
+                    emp_id, employee_name, department, position, hire_date, termination_date,
+                    term_reason, salary, employment_status, gender, age, race, marital_status,
+                    state, zip_code, engagement_survey, emp_satisfaction, special_projects_count,
+                    last_performance_review, days_late_last_30, absences
                 )
-                conn.commit()  # Commit after each employee
-                
-            except Exception as e:
-                print(f"Error processing employee {row['Employee_Name']}: {e}")
-                continue
-        
-        print("Data import completed successfully!")
-        
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (emp_id) DO NOTHING
+            """, (
+                row['EmpID'],
+                row['Employee_Name'],
+                row['Department'].strip(),
+                row['Position'],
+                hire_date,
+                term_date,
+                row.get('TermReason'),
+                row['Salary'],
+                row.get('EmploymentStatus'),
+                row.get('Sex').strip(),
+                datetime.now().year - pd.to_datetime(row['DOB']).year if pd.notnull(row['DOB']) else None,
+                row.get('RaceDesc'),
+                row.get('MaritalDesc'),
+                row.get('State'),
+                row.get('Zip'),
+                row.get('EngagementSurvey'),
+                row.get('EmpSatisfaction'),
+                row.get('SpecialProjectsCount'),
+                last_review,
+                row.get('DaysLateLast30'),
+                row.get('Absences')
+            ))
+            conn.commit()
+
+        print("Data import into EmployeeInfo table completed.")
+
+        # Create linked tables (e.g., Departments, Positions, PerformanceScores)
+        print("Creating linked tables for Departments, Positions, PerformanceScores...")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Departments (
+                dept_id SERIAL PRIMARY KEY,
+                department_name VARCHAR(50) UNIQUE
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Positions (
+                position_id SERIAL PRIMARY KEY,
+                position_name VARCHAR(50) UNIQUE
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS PerformanceScores (
+                score_id SERIAL PRIMARY KEY,
+                performance_score VARCHAR(50) UNIQUE
+            );
+        """)
+        conn.commit()
+
+        # Populate linked tables if necessary
+        departments = df['Department'].str.strip().unique()
+        positions = df['Position'].unique()
+        performance_scores = df['PerformanceScore'].unique()
+
+        for dept in departments:
+            cur.execute("INSERT INTO Departments (department_name) VALUES (%s) ON CONFLICT (department_name) DO NOTHING", (dept,))
+        for pos in positions:
+            cur.execute("INSERT INTO Positions (position_name) VALUES (%s) ON CONFLICT (position_name) DO NOTHING", (pos,))
+        for score in performance_scores:
+            cur.execute("INSERT INTO PerformanceScores (performance_score) VALUES (%s) ON CONFLICT (performance_score) DO NOTHING", (score,))
+        conn.commit()
+
+        print("Linked tables created and populated with initial values.")
+    
     except Exception as e:
         conn.rollback()
-        print(f"Error occurred: {e}")
-        raise
-    
+        print(f"An error occurred: {e}")
     finally:
         cur.close()
         conn.close()
+        print("Database connection closed.")
 
 if __name__ == "__main__":
-    file_path = "C:/Users/govar/OneDrive/Documents/HRM/data/raw/HRDataset_v14.xlsx"
+    file_path = "C:/Users/govar/OneDrive/Documents/HRM/data/raw/HRDataset_v14_json.json"
     import_hr_data(file_path)
