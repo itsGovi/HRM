@@ -1,8 +1,6 @@
 import pandas as pd
 import psycopg2
-from psycopg2 import sql
 import sys
-from datetime import datetime
 import json
 
 def create_hr_database():
@@ -197,48 +195,130 @@ def safe_date(value):
         return None
     return value
 
-def insert_data(sheets, conn):
+def split_dataframe(df):
+    """Split single dataframe into multiple dataframes for different tables"""
+    
+    # Define column groups for each table
+    column_groups = {
+        'employees': [
+            'employee_id', 'name', 'department', 'position', 'hire_date',
+            'termination_date', 'termination_reason', 'employment_status',
+            'date_of_birth', 'age', 'gender', 'ethnicity', 'salary',
+            'performance_rating', 'recruitment_source', 'education_level',
+            'years_experience', 'previous_companies', 'remote_work_status'
+        ],
+        'performance_metrics': [
+            'employee_id', 'project_completion_rate', 'work_satisfaction',
+            'productivity', 'engagement_score', 'absence_days', 'last_review_date',
+            'overtime_hours', 'training_hours_completed', 'team_size',
+            'projects_completed', 'certifications_count', 'team_collaboration_score'
+        ],
+        'sales_metrics': [
+            'employee_id', 'quota_attainment', 'lead_conversion_rate',
+            'client_retention_rate', 'deals_closed', 'average_contract_value',
+            'client_satisfaction_score', 'sales_target_percent',
+            'prospecting_hours', 'repeat_business_percent'
+        ],
+        'hr_metrics': [
+            'employee_id', 'time_to_fill', 'candidates_hired', 'retention_rate',
+            'employee_satisfaction_score', 'training_programs_managed',
+            'policy_compliance_rate', 'disputes_resolved',
+            'onboarding_effectiveness_score', 'exit_interviews_completed',
+            'benefits_administration_score', 'recruitment_cost_per_hire',
+            'employee_relations_score'
+        ],
+        'it_support_metrics': [
+            'employee_id', 'tickets_resolved', 'average_resolution_time',
+            'first_call_resolution_rate', 'system_uptime_managed',
+            'security_incidents_handled', 'customer_satisfaction_score'
+        ],
+        'engineering_metrics': [
+            'employee_id', 'bugs_per_project', 'code_review_scores',
+            'commits_per_week', 'pull_requests_opened', 'pull_requests_accepted',
+            'technical_debt_score', 'documentation_contribution', 'system_uptime',
+            'on_call_incidents', 'deployment_frequency', 'code_coverage'
+        ],
+        'cross_functional_metrics': [
+            'employee_id', 'cross_team_projects',
+            'peer_reviews_completed', 'mentoring_hours'
+        ]
+    }
+    
+    # Split data into separate dataframes
+    dataframes = {}
+    for table_name, columns in column_groups.items():
+        # Get only the columns that exist in the dataframe
+        existing_columns = [col for col in columns if col in df.columns]
+        if existing_columns:
+            table_df = df[existing_columns].copy()
+            # Remove rows where all metric columns are null
+            metric_columns = [col for col in existing_columns if col != 'employee_id']
+            if metric_columns:
+                table_df = table_df.dropna(subset=metric_columns, how='all')
+            dataframes[table_name] = table_df
+
+    # Handle certifications separately (they might be in a comma-separated list)
+    if 'certifications' in df.columns:
+        cert_data = []
+        for _, row in df.iterrows():
+            if pd.notna(row['certifications']):
+                certs = row['certifications'].split(',')
+                for cert in certs:
+                    cert_data.append({
+                        'employee_id': row['employee_id'],
+                        'certification_name': cert.strip()
+                    })
+        if cert_data:
+            dataframes['employee_certifications'] = pd.DataFrame(cert_data)
+
+    return dataframes
+
+def insert_data(df, conn):
     """Insert data into all tables"""
+    # Split the single dataframe into multiple dataframes
+    dataframes = split_dataframe(df)
+    
     cur = conn.cursor()
     
     # Insert into employees table
-    for _, row in sheets['employees'].iterrows():
-        try:
-            cur.execute("""
-                INSERT INTO employees (
-                    employee_id, name, department, position, hire_date,
-                    termination_date, termination_reason, employment_status,
-                    date_of_birth, age, gender, ethnicity, salary,
-                    performance_rating, recruitment_source, education_level,
-                    years_experience, previous_companies, remote_work_status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
-                         %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO NOTHING
-            """, (
-                int(row['employee_id']),
-                row['name'],
-                row['department'],
-                row['position'],
-                safe_date(row['hire_date']),
-                safe_date(row['termination_date']),
-                row.get('termination_reason'),
-                row['employment_status'],
-                safe_date(row['date_of_birth']),
-                int(row['age']) if pd.notna(row['age']) else None,
-                row['gender'],
-                row['ethnicity'],
-                safe_numeric(row['salary']),
-                row.get('performance_rating'),
-                row.get('recruitment_source'),
-                row.get('education_level'),
-                safe_numeric(row.get('years_experience')),
-                row.get('previous_companies'),
-                row.get('remote_work_status')
-            ))
-        except Exception as e:
-            print(f"Error inserting employee {row['employee_id']}: {e}")
+    if 'employees' in dataframes:
+        for _, row in dataframes['employees'].iterrows():
+            try:
+                cur.execute("""
+                    INSERT INTO employees (
+                        employee_id, name, department, position, hire_date,
+                        termination_date, termination_reason, employment_status,
+                        date_of_birth, age, gender, ethnicity, salary,
+                        performance_rating, recruitment_source, education_level,
+                        years_experience, previous_companies, remote_work_status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 
+                             %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (employee_id) DO NOTHING
+                """, (
+                    int(row['employee_id']),
+                    row.get('name'),
+                    row.get('department'),
+                    row.get('position'),
+                    safe_date(row.get('hire_date')),
+                    safe_date(row.get('termination_date')),
+                    row.get('termination_reason'),
+                    row.get('employment_status'),
+                    safe_date(row.get('date_of_birth')),
+                    int(row['age']) if pd.notna(row.get('age')) else None,
+                    row.get('gender'),
+                    row.get('ethnicity'),
+                    safe_numeric(row.get('salary')),
+                    row.get('performance_rating'),
+                    row.get('recruitment_source'),
+                    row.get('education_level'),
+                    safe_numeric(row.get('years_experience')),
+                    row.get('previous_companies'),
+                    row.get('remote_work_status')
+                ))
+            except Exception as e:
+                print(f"Error inserting employee {row['employee_id']}: {e}")
 
-    # Insert data for each metrics table
+    # Define table mappings with their respective insert functions
     table_mappings = {
         'performance_metrics': performance_metrics,
         'sales_metrics': sales_metrics,
@@ -249,7 +329,8 @@ def insert_data(sheets, conn):
         'cross_functional_metrics': cross_functional_metrics
     }
 
-    for table_name, df in sheets.items():
+    # Insert data for each metrics table
+    for table_name, df in dataframes.items():
         if table_name in table_mappings:
             try:
                 table_mappings[table_name](df, cur)
@@ -408,21 +489,12 @@ if __name__ == "__main__":
         # Create database and tables
         conn, cur = create_hr_database()
 
-        # Read Excel data
+        # Read Excel data (single sheet)
         excel_file = "C:/Users/govar/OneDrive/Documents/HRM/data/raw/hr_data.xlsx"
-        sheets = {
-            'employees': pd.read_excel(excel_file, sheet_name='employees'),
-            'performance_metrics': pd.read_excel(excel_file, sheet_name='performance_metrics'),
-            'sales_metrics': pd.read_excel(excel_file, sheet_name='sales_metrics'),
-            'hr_metrics': pd.read_excel(excel_file, sheet_name='hr_metrics'),
-            'it_support_metrics': pd.read_excel(excel_file, sheet_name='it_support_metrics'),
-            'engineering_metrics': pd.read_excel(excel_file, sheet_name='engineering_metrics'),
-            'employee_certifications': pd.read_excel(excel_file, sheet_name='employee_certifications'),
-            'cross_functional_metrics': pd.read_excel(excel_file, sheet_name='cross_functional_metrics')
-        }
+        df = pd.read_excel(excel_file)
         
         # Insert data into tables
-        insert_data(sheets, conn)
+        insert_data(df, conn)
         
         print("\nHR data import process completed successfully!")
 
