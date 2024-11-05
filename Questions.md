@@ -1,21 +1,27 @@
-Here are five high-ROI questions that progressively build toward a "big picture" visualization, connecting various aspects of the HR data to provide a comprehensive overview:
 
-1. **What is the turnover rate per department and position over the last five years?**
-   - *Goal*: Identify departments and roles with the highest turnover, which can reveal organizational challenges, team morale, or position-specific issues. 
-   
-2. **How does employee engagement correlate with performance scores across departments?**
-   - *Goal*: Explore how engagement levels align with performance outcomes, highlighting potential areas for improvement in employee satisfaction to boost performance.
+# 6 Questions for R-DBMS
 
-3. **What is the trend in hiring sources that yield the highest employee retention and performance?**
-   - *Goal*: Analyze recruitment sources (LinkedIn, Indeed, referrals) to determine which yield the most productive, long-term employees, informing hiring strategies for quality hires.
+Here are five focused questions along with one overarching question for a comprehensive visualization that aligns all insights toward a broader goal:
 
-4. **How does the salary distribution vary across departments and positions, and what is its impact on retention and satisfaction?**
-   - *Goal*: Investigate pay discrepancies by department and position to assess their potential influence on employee satisfaction and retention, guiding equitable compensation strategies.
+1. **What factors most influence employee retention across different departments?**
 
-5. **What are the most common reasons for termination by department, and how do these reasons relate to engagement and performance scores?**
-   - *Goal*: Understand the main factors driving employee exit decisions in different areas, offering insights into how to preemptively address these issues to reduce attrition.
+   - Analyze relationships between performance ratings, work satisfaction, training hours, team size, and retention rates. This could help in identifying areas where improved support or training might increase retention.
+2. **Which performance metrics (e.g., project completion rate, productivity, engagement) correlate most strongly with high client satisfaction in sales and customer-facing roles?**
 
-6. **Ultimate Question: What strategic actions can be taken to optimize workforce satisfaction, retention, and performance across the organization?**
-   - *Goal*: Synthesize insights from the questions above into a comprehensive view, enabling a roadmap for improved retention, satisfaction, and performance aligned with the organization’s needs.
+   - This question targets factors in performance that align with customer satisfaction, which can be critical in customer-facing departments like Sales and IT.
+3. **How does remote work status affect productivity and engagement scores across different roles and departments?**
 
-This “big picture” analysis would reveal patterns and guide strategic actions across recruitment, compensation, and departmental development, offering a cohesive approach to enhance organizational health.
+   - Investigate whether employees working remotely or in hybrid settings have comparable productivity and engagement levels, which could inform flexible work policies and their effects on team dynamics.
+4. **What is the impact of training hours, certifications, and mentoring on employee performance across various metrics?**
+
+   - Examine how development-focused activities (e.g., training, certifications, mentoring) contribute to performance improvements, retention, and overall satisfaction, providing insights into the ROI of professional development programs.
+5. **What are the key drivers of recruitment success in terms of time-to-fill, retention rate, and recruitment source?**
+
+   - This question seeks to uncover patterns and best practices in recruitment, enabling HR to optimize hiring strategies that lead to long-term employee retention and reduce time-to-hire costs.
+
+### **BIG PICTURE QUESTION:**
+
+6. **How can we design an optimal employee experience strategy that aligns retention, productivity, and client satisfaction with professional development and recruitment policies?**
+   - This comprehensive question can bring together the insights from all the individual questions. The goal is to create a visualization that highlights how these factors interplay to build a more effective employee experience strategy, ensuring that recruitment, training, performance, and satisfaction align towards a more productive, satisfied, and loyal workforce.
+
+Each of these questions can be visualized using Python libraries like Matplotlib, Seaborn, and Plotly to generate insightful dashboards and comprehensive visuals.
