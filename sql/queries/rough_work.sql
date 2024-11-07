@@ -1,5 +1,5 @@
 -- deleting all tables to build a fresh schema
-/*
+
 DO $$ 
 DECLARE 
     r RECORD;

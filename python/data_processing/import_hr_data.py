@@ -1,386 +1,456 @@
 import pandas as pd
 import psycopg2
-import os
-import sys
-from datetime import datetime
+from psycopg2 import sql
+import numpy as np
 
-def create_hr_database():
-    """Create database connection and initialize all tables"""
-    try:
-        conn = psycopg2.connect(
-            dbname="hr_resource_db",
-            user="postgres",
-            password="1234",
-            host="localhost",
-            port="5432"
+def create_connection():
+    return psycopg2.connect(
+        dbname="hr_resource_db",
+        user="postgres",
+        password="1234",
+        host="localhost",
+        port="5432"
+    )
+
+def create_tables(conn):
+    with conn.cursor() as cur:
+        # Main employees table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS employees (
+            employee_id INTEGER PRIMARY KEY,
+            full_name VARCHAR(100),
+            department VARCHAR(50),
+            position VARCHAR(100),
+            level VARCHAR(20),
+            hire_date DATE,
+            city VARCHAR(50),
+            country VARCHAR(50),
+            region VARCHAR(20),
+            remote_work_ratio FLOAT,
+            travel_percentage FLOAT,
+            base_salary FLOAT,
+            total_comp FLOAT,
+            billing_rate FLOAT,
+            utilization_target FLOAT,
+            actual_utilization FLOAT,
+            primary_specialization VARCHAR(100),
+            secondary_specialization VARCHAR(100),
+            industry_expertise TEXT,
+            certifications TEXT,
+            active_projects INTEGER,
+            avg_project_complexity FLOAT,
+            avg_project_duration FLOAT,
+            avg_team_size FLOAT,
+            projects_on_time FLOAT,
+            project_satisfaction FLOAT,
+            training_hours INTEGER,
+            mentorship_hours INTEGER,
+            knowledge_sharing_score FLOAT,
+            promotion_readiness FLOAT,
+            engagement_score FLOAT,
+            flight_risk FLOAT,
+            retention_risk VARCHAR(20),
+            performance_score FLOAT,
+            innovation_score FLOAT,
+            delivery_quality FLOAT,
+            manager_id INTEGER,
+            is_manager BOOLEAN,
+            management_level VARCHAR(20),
+            direct_reports INTEGER,
+            span_of_control VARCHAR(20),
+            team_lead_projects INTEGER
         )
-        print("Successfully connected to database")
-        cur = conn.cursor()
-        
-        # Core employee table
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS employees (
-                employee_id INTEGER PRIMARY KEY,
-                full_name VARCHAR(100),
-                department VARCHAR(50),
-                position VARCHAR(100),
-                position_level VARCHAR(20),
-                hire_date DATE,
-                city VARCHAR(50),
-                country VARCHAR(50),
-                region VARCHAR(20),
-                remote_work_ratio DECIMAL(5,2),
-                travel_percentage DECIMAL(5,2),
-                primary_specialization VARCHAR(50),
-                secondary_specialization VARCHAR(50),
-                industry_expertise TEXT
-            )
         """)
-        
-        # Performance and metrics tables
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS performance_metrics (
-                metric_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                performance_score DECIMAL(4,2),
-                innovation_score DECIMAL(5,2),
-                delivery_quality DECIMAL(5,2),
-                engagement_score DECIMAL(4,2),
-                knowledge_sharing_score DECIMAL(4,2),
-                UNIQUE(employee_id)
-            )
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS project_metrics (
-                project_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                active_projects INTEGER,
-                avg_project_complexity DECIMAL(3,1),
-                avg_project_duration DECIMAL(4,1),
-                avg_team_size DECIMAL(4,1),
-                projects_on_time DECIMAL(5,2),
-                project_satisfaction DECIMAL(3,1),
-                team_lead_projects INTEGER,
-                UNIQUE(employee_id)
-            )
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS development_metrics (
-                dev_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                training_hours INTEGER,
-                mentorship_hours INTEGER,
-                direct_reports INTEGER,
-                UNIQUE(employee_id)
-            )
-        """)
-        
-        # Risk and management tables
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS risk_assessment (
-                risk_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                flight_risk INTEGER,
-                retention_risk VARCHAR(20),
-                promotion_readiness DECIMAL(5,2),
-                last_promotion_date DATE,
-                risk_factors TEXT[],
-                UNIQUE(employee_id)
-            )
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS management_info (
-                employee_id INTEGER PRIMARY KEY REFERENCES employees(employee_id),
-                is_manager BOOLEAN,
-                management_level VARCHAR(20),
-                span_of_control INTEGER,
-                management_premium NUMERIC(10,2),
-                span_premium NUMERIC(10,2),
-                total_comp NUMERIC(10,2)
-            )
-        """)
-        
-        # Compensation and certification tables
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS compensation_metrics (
-                comp_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                base_salary NUMERIC(10,2),
-                total_comp NUMERIC(10,2),
-                billing_rate NUMERIC(10,2),
-                salary_percentile DECIMAL(5,2),
-                comp_ratio DECIMAL(5,2),
-                UNIQUE(employee_id)
-            )
-        """)
-        
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS employee_certifications (
-                cert_id SERIAL PRIMARY KEY,
-                employee_id INTEGER REFERENCES employees(employee_id),
-                certification_name VARCHAR(200),
-                UNIQUE(employee_id, certification_name)
-            )
-        """)
-        
-        return conn, cur
-    except psycopg2.Error as e:
-        print(f"Database connection error: {e}")
-        raise
 
-def safe_numeric(value):
-    """Safely convert value to float, handling NULL values"""
-    try:
-        return float(value) if pd.notna(value) else None
-    except:
-        return None
+        # Flight risk analysis table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS flight_risk_analysis (
+            risk_level VARCHAR(20),
+            employee_count INTEGER,
+            avg_tenure FLOAT,
+            avg_performance FLOAT,
+            avg_salary FLOAT,
+            avg_utilization FLOAT,
+            dept_distribution JSONB,
+            common_specializations JSONB,
+            PRIMARY KEY (risk_level)
+        )
+        """)
 
-def safe_date(value):
-    """Safely convert value to date, handling NULL values"""
-    if pd.isna(value):
-        return None
-    try:
-        return pd.to_datetime(value).date()
-    except:
-        return None
+        # Manager performance insights
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS manager_performance_insights (
+            management_level VARCHAR(20),
+            performance_category VARCHAR(20),
+            manager_count INTEGER,
+            avg_team_size FLOAT,
+            avg_team_performance FLOAT,
+            avg_team_satisfaction FLOAT,
+            avg_team_retention FLOAT,
+            dept_distribution JSONB,
+            success_factors JSONB,
+            PRIMARY KEY (management_level, performance_category)
+        )
+        """)
 
-def calculate_risk_factors(row):
-    """Calculate risk factors based on various metrics"""
-    risk_factors = []
-    if safe_numeric(row.get('engagement_score', 0)) < 7.0:
-        risk_factors.append('low_engagement')
-    if safe_numeric(row.get('performance_score', 0)) < 3.5:
-        risk_factors.append('low_performance')
-    if safe_numeric(row.get('actual_utilization', 0)) < safe_numeric(row.get('utilization_target', 0)) * 0.8:
-        risk_factors.append('low_utilization')
-    if safe_numeric(row.get('promotion_readiness', 0)) > 70 and row.get('position_level', '').lower() != 'senior':
-        risk_factors.append('promotion_due')
-    if safe_numeric(row.get('project_satisfaction', 0)) < 4.0:
-        risk_factors.append('low_satisfaction')
-    return risk_factors
+        # Promotion readiness analysis
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS promotion_readiness_analysis (
+            readiness_band VARCHAR(20),
+            level VARCHAR(20),
+            employee_count INTEGER,
+            avg_performance FLOAT,
+            avg_knowledge_sharing FLOAT,
+            avg_project_complexity FLOAT,
+            critical_skills JSONB,
+            dept_distribution JSONB,
+            PRIMARY KEY (readiness_band, level)
+        )
+        """)
 
-def insert_employee_data(df, conn, cur):
-    """Insert core employee data"""
-    for _, row in df.iterrows():
+        # Skills gap analysis
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS skills_gap_analysis (
+            department VARCHAR(50),
+            critical_skill VARCHAR(100),
+            current_coverage FLOAT,
+            required_coverage FLOAT,
+            gap_severity VARCHAR(20),
+            affected_projects INTEGER,
+            training_recommendations JSONB,
+            PRIMARY KEY (department, critical_skill)
+        )
+        """)
+
+        # Project performance metrics
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS project_performance_metrics (
+            complexity_level INTEGER,
+            department VARCHAR(50),
+            project_count INTEGER,
+            avg_duration FLOAT,
+            success_rate FLOAT,
+            avg_team_size FLOAT,
+            key_success_factors JSONB,
+            risk_factors JSONB,
+            PRIMARY KEY (complexity_level, department)
+        )
+        """)
+
+        # Compensation analysis
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS compensation_analysis (
+            department VARCHAR(50),
+            level VARCHAR(20),
+            performance_band VARCHAR(20),
+            employee_count INTEGER,
+            avg_base_salary FLOAT,
+            avg_total_comp FLOAT,
+            salary_range JSONB,
+            market_position FLOAT,
+            PRIMARY KEY (department, level, performance_band)
+        )
+        """)
+
+def import_main_data(conn, df):
+    """
+    Import data into the employees table with proper error handling and data validation
+    """
+    # Ensure all columns exist and are in the correct order
+    expected_columns = [
+        'employee_id', 'full_name', 'department', 'position', 'level', 
+        'hire_date', 'city', 'country', 'region', 'remote_work_ratio',
+        'travel_percentage', 'base_salary', 'total_comp', 'billing_rate', 
+        'utilization_target', 'actual_utilization', 'primary_specialization',
+        'secondary_specialization', 'industry_expertise', 'certifications',
+        'active_projects', 'avg_project_complexity', 'avg_project_duration',
+        'avg_team_size', 'projects_on_time', 'project_satisfaction',
+        'training_hours', 'mentorship_hours', 'knowledge_sharing_score',
+        'promotion_readiness', 'engagement_score', 'flight_risk',
+        'retention_risk', 'performance_score', 'innovation_score',
+        'delivery_quality', 'manager_id', 'is_manager', 'management_level',
+        'direct_reports', 'span_of_control', 'team_lead_projects'
+    ]
+
+    # Convert list columns to strings
+    df['industry_expertise'] = df['industry_expertise'].apply(lambda x: str(x) if isinstance(x, list) else x)
+    df['certifications'] = df['certifications'].apply(lambda x: str(x) if isinstance(x, list) else x)
+    
+    # Ensure hire_date is in the correct format
+    df['hire_date'] = pd.to_datetime(df['hire_date']).dt.date
+    
+    # Convert boolean values
+    df['is_manager'] = df['is_manager'].astype(bool)
+    
+    # Handle null values
+    numeric_columns = df.select_dtypes(include=[np.number]).columns
+    df[numeric_columns] = df[numeric_columns].fillna(0)
+    df = df.fillna('')
+
+    with conn.cursor() as cur:
+        # Clear existing data
+        cur.execute("TRUNCATE TABLE employees CASCADE")
+        
+        # Prepare the INSERT statement with the correct number of placeholders
+        placeholders = ','.join(['%s'] * len(expected_columns))
+        insert_query = f"""
+            INSERT INTO employees ({','.join(expected_columns)})
+            VALUES ({placeholders})
+        """
+        
+        # Import data row by row with error handling
+        for idx, row in df.iterrows():
+            try:
+                # Ensure row data is in the correct order
+                row_data = [row[col] if col in row else None for col in expected_columns]
+                cur.execute(insert_query, row_data)
+            except Exception as e:
+                print(f"Error importing row {idx}: {str(e)}")
+                print(f"Row data: {row_data}")
+                raise
+
+
+def populate_analytical_tables(conn):
+    with conn.cursor() as cur:
         try:
-            industry_expertise = ', '.join(str(row['industry_expertise']).split(', ')) if pd.notna(row.get('industry_expertise')) else None
-            cur.execute("""
-                INSERT INTO employees (
-                    employee_id, full_name, department, position, position_level,
-                    hire_date, city, country, region, remote_work_ratio,
-                    travel_percentage, primary_specialization, secondary_specialization,
-                    industry_expertise
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    full_name = EXCLUDED.full_name,
-                    department = EXCLUDED.department,
-                    position = EXCLUDED.position
-            """, (
-                int(row['employee_id']), row['full_name'], row['department'],
-                row['position'], row['position_level'], safe_date(row['hire_date']),
-                row['city'], row['country'], row['region'],
-                safe_numeric(row['remote_work_ratio']),
-                safe_numeric(row['travel_percentage']),
-                row['primary_specialization'], row['secondary_specialization'],
-                industry_expertise
-            ))
-        except Exception as e:
-            print(f"Error inserting employee {row['employee_id']}: {e}")
+            # Clear existing data
+            cur.execute("TRUNCATE TABLE flight_risk_analysis, manager_performance_insights, promotion_readiness_analysis")
 
-def insert_performance_and_project_data(df, conn, cur):
-    """Insert performance and project-related metrics"""
-    for _, row in df.iterrows():
-        try:
-            # Performance metrics
+            # Populate flight risk analysis - Fixed nested aggregation
             cur.execute("""
-                INSERT INTO performance_metrics (
-                    employee_id, performance_score, innovation_score,
-                    delivery_quality, engagement_score, knowledge_sharing_score
-                ) VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    performance_score = EXCLUDED.performance_score,
-                    innovation_score = EXCLUDED.innovation_score,
-                    delivery_quality = EXCLUDED.delivery_quality,
-                    engagement_score = EXCLUDED.engagement_score,
-                    knowledge_sharing_score = EXCLUDED.knowledge_sharing_score
-            """, (
-                int(row['employee_id']), safe_numeric(row['performance_score']),
-                safe_numeric(row['innovation_score']), safe_numeric(row['delivery_quality']),
-                safe_numeric(row['engagement_score']), safe_numeric(row['knowledge_sharing_score'])
-            ))
-            
-            # Project metrics
-            cur.execute("""
-                INSERT INTO project_metrics (
-                    employee_id, active_projects, avg_project_complexity,
-                    avg_project_duration, avg_team_size, projects_on_time,
-                    project_satisfaction, team_lead_projects
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    active_projects = EXCLUDED.active_projects,
-                    avg_project_complexity = EXCLUDED.avg_project_complexity,
-                    projects_on_time = EXCLUDED.projects_on_time
-            """, (
-                int(row['employee_id']), safe_numeric(row['active_projects']),
-                safe_numeric(row['avg_project_complexity']),
-                safe_numeric(row['avg_project_duration']),
-                safe_numeric(row['avg_team_size']),
-                safe_numeric(row['projects_on_time']),
-                safe_numeric(row['project_satisfaction']),
-                safe_numeric(row['team_lead_projects'])
-            ))
-        except Exception as e:
-            print(f"Error inserting metrics for employee {row['employee_id']}: {e}")
+            WITH risk_groups AS (
+                SELECT 
+                    CASE 
+                        WHEN flight_risk >= 70 THEN 'High'
+                        WHEN flight_risk >= 40 THEN 'Medium'
+                        ELSE 'Low'
+                    END as risk_level,
+                    department,
+                    primary_specialization,
+                    hire_date,
+                    performance_score,
+                    base_salary,
+                    actual_utilization
+                FROM employees
+            ),
+            dept_counts AS (
+                SELECT 
+                    risk_level,
+                    department,
+                    COUNT(*) as dept_count
+                FROM risk_groups
+                GROUP BY risk_level, department
+            ),
+            spec_counts AS (
+                SELECT 
+                    risk_level,
+                    primary_specialization,
+                    COUNT(*) as spec_count
+                FROM risk_groups
+                GROUP BY risk_level, primary_specialization
+            )
+            INSERT INTO flight_risk_analysis
+            SELECT 
+                rg.risk_level,
+                COUNT(DISTINCT rg.department) as employee_count,
+                AVG(DATE_PART('year', CURRENT_DATE) - DATE_PART('year', rg.hire_date)) as avg_tenure,
+                AVG(rg.performance_score) as avg_performance,
+                AVG(rg.base_salary) as avg_salary,
+                AVG(rg.actual_utilization) as avg_utilization,
+                (
+                    SELECT jsonb_object_agg(department, dept_count)
+                    FROM dept_counts dc
+                    WHERE dc.risk_level = rg.risk_level
+                ) as dept_distribution,
+                (
+                    SELECT jsonb_object_agg(primary_specialization, spec_count)
+                    FROM spec_counts sc
+                    WHERE sc.risk_level = rg.risk_level
+                ) as common_specializations
+            FROM risk_groups rg
+            GROUP BY rg.risk_level
+            """)
 
-def insert_risk_and_management_data(df, conn, cur):
-    """Insert risk assessment and management information"""
-    for _, row in df.iterrows():
-        try:
-            # Risk assessment
-            risk_factors = calculate_risk_factors(row)
+            # Populate manager performance insights - Fixed nested aggregation
             cur.execute("""
-                INSERT INTO risk_assessment (
-                    employee_id, flight_risk, retention_risk,
-                    promotion_readiness, risk_factors
-                ) VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    flight_risk = EXCLUDED.flight_risk,
-                    retention_risk = EXCLUDED.retention_risk,
-                    risk_factors = EXCLUDED.risk_factors
-            """, (
-                int(row['employee_id']), safe_numeric(row['flight_risk']),
-                row['retention_risk'], safe_numeric(row['promotion_readiness']),
-                risk_factors
-            ))
-            
-            # Management info
-            if row.get('is_manager'):
-                cur.execute("""
-                    INSERT INTO management_info (
-                        employee_id, is_manager, management_level,
-                        span_of_control, management_premium, span_premium,
-                        total_comp
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (employee_id) DO UPDATE SET
-                        management_level = EXCLUDED.management_level,
-                        span_of_control = EXCLUDED.span_of_control
-                """, (
-                    int(row['employee_id']), row['is_manager'],
-                    row['management_level'], safe_numeric(row['span_of_control']),
-                    safe_numeric(row['management_premium']),
-                    safe_numeric(row['span_premium']),
-                    safe_numeric(row['total_comp'])
-                ))
-        except Exception as e:
-            print(f"Error inserting risk/management data for employee {row['employee_id']}: {e}")
+            WITH perf_categories AS (
+                SELECT 
+                    e.employee_id,
+                    e.management_level,
+                    e.department,
+                    e.knowledge_sharing_score,
+                    e.avg_project_complexity,
+                    e.mentorship_hours,
+                    CASE 
+                        WHEN e.performance_score >= 4.5 THEN 'Top'
+                        WHEN e.performance_score >= 3.5 THEN 'Average'
+                        ELSE 'Below'
+                    END as performance_category
+                FROM employees e
+                WHERE e.is_manager = true
+            ),
+            team_metrics AS (
+                SELECT 
+                    e.manager_id,
+                    AVG(e.performance_score) as team_performance,
+                    AVG(e.project_satisfaction) as team_satisfaction,
+                    1 - AVG(e.flight_risk/100) as team_retention,
+                    COUNT(*) as team_size
+                FROM employees e
+                GROUP BY e.manager_id
+            ),
+            dept_counts AS (
+                SELECT 
+                    management_level,
+                    performance_category,
+                    department,
+                    COUNT(*) as dept_count
+                FROM perf_categories
+                GROUP BY management_level, performance_category, department
+            )
+            INSERT INTO manager_performance_insights
+            SELECT 
+                pc.management_level,
+                pc.performance_category,
+                COUNT(DISTINCT pc.employee_id) as manager_count,
+                AVG(tm.team_size) as avg_team_size,
+                AVG(tm.team_performance) as avg_team_performance,
+                AVG(tm.team_satisfaction) as avg_team_satisfaction,
+                AVG(tm.team_retention) as avg_team_retention,
+                (
+                    SELECT jsonb_object_agg(department, dept_count)
+                    FROM dept_counts dc
+                    WHERE dc.management_level = pc.management_level
+                    AND dc.performance_category = pc.performance_category
+                ) as dept_distribution,
+                jsonb_build_object(
+                    'avg_knowledge_sharing', AVG(pc.knowledge_sharing_score),
+                    'avg_project_complexity', AVG(pc.avg_project_complexity),
+                    'avg_mentorship_hours', AVG(pc.mentorship_hours)
+                ) as success_factors
+            FROM perf_categories pc
+            LEFT JOIN team_metrics tm ON pc.employee_id = tm.manager_id
+            GROUP BY pc.management_level, pc.performance_category
+            """)
 
-def insert_compensation_and_development_data(df, conn, cur):
-    """Insert compensation metrics and development data"""
-    for _, row in df.iterrows():
-        try:
-            # Compensation metrics
-            salary_percentile = 50.0  # Placeholder - could be calculated based on department/level
-            comp_ratio = (safe_numeric(row['total_comp']) / safe_numeric(row['base_salary'])) * 100 if pd.notna(row.get('base_salary')) and float(row['base_salary']) > 0 else None
-            
+            # Populate promotion readiness analysis - Fixed nested aggregation
             cur.execute("""
-                INSERT INTO compensation_metrics (
-                    employee_id, base_salary, total_comp, billing_rate,
-                    salary_percentile, comp_ratio
-                ) VALUES (%s, %s, %s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    base_salary = EXCLUDED.base_salary,
-                    total_comp = EXCLUDED.total_comp
-            """, (
-                int(row['employee_id']), safe_numeric(row['base_salary']),
-                safe_numeric(row['total_comp']), safe_numeric(row['billing_rate']),
-                salary_percentile, comp_ratio
-            ))
-            
-            # Development metrics
-            cur.execute("""
-                INSERT INTO development_metrics (
-                    employee_id, training_hours, mentorship_hours, direct_reports
-                ) VALUES (%s, %s, %s, %s)
-                ON CONFLICT (employee_id) DO UPDATE SET
-                    training_hours = EXCLUDED.training_hours,
-                    mentorship_hours = EXCLUDED.mentorship_hours
-            """, (
-                int(row['employee_id']), safe_numeric(row['training_hours']),
-                safe_numeric(row['mentorship_hours']), safe_numeric(row['direct_reports'])
-            ))
-        except Exception as e:
-            print(f"Error inserting compensation/development data for employee {row['employee_id']}: {e}")
+            WITH readiness_groups AS (
+                SELECT 
+                    employee_id,
+                    CASE 
+                        WHEN promotion_readiness >= 80 THEN 'Ready Now'
+                        WHEN promotion_readiness >= 60 THEN 'Ready Soon'
+                        WHEN promotion_readiness >= 40 THEN 'Developing'
+                        ELSE 'Not Ready'
+                    END as readiness_band,
+                    level,
+                    department,
+                    primary_specialization,
+                    performance_score,
+                    knowledge_sharing_score,
+                    avg_project_complexity
+                FROM employees
+                WHERE level != 'senior'
+            ),
+            skill_counts AS (
+                SELECT 
+                    readiness_band,
+                    level,
+                    primary_specialization,
+                    COUNT(*) as skill_count
+                FROM readiness_groups
+                GROUP BY readiness_band, level, primary_specialization
+            ),
+            dept_counts AS (
+                SELECT 
+                    readiness_band,
+                    level,
+                    department,
+                    COUNT(*) as dept_count
+                FROM readiness_groups
+                GROUP BY readiness_band, level, department
+            )
+            INSERT INTO promotion_readiness_analysis
+            SELECT 
+                rg.readiness_band,
+                rg.level,
+                COUNT(DISTINCT rg.employee_id) as employee_count,
+                AVG(rg.performance_score) as avg_performance,
+                AVG(rg.knowledge_sharing_score) as avg_knowledge_sharing,
+                AVG(rg.avg_project_complexity) as avg_project_complexity,
+                (
+                    SELECT jsonb_object_agg(primary_specialization, skill_count)
+                    FROM skill_counts sc
+                    WHERE sc.readiness_band = rg.readiness_band
+                    AND sc.level = rg.level
+                ) as critical_skills,
+                (
+                    SELECT jsonb_object_agg(department, dept_count)
+                    FROM dept_counts dc
+                    WHERE dc.readiness_band = rg.readiness_band
+                    AND dc.level = rg.level
+                ) as dept_distribution
+            FROM readiness_groups rg
+            GROUP BY rg.readiness_band, rg.level
+            """)
 
-def insert_certifications(df, conn, cur):
-    """Insert employee certifications"""
-    for _, row in df.iterrows():
-        if pd.notna(row.get('certifications')):
-            certs = str(row['certifications']).split(',')
-            for cert in certs:
-                try:
-                    cur.execute("""
-                        INSERT INTO employee_certifications (employee_id, certification_name)
-                        VALUES (%s, %s)
-                        ON CONFLICT (employee_id, certification_name) DO NOTHING
-                    """, (int(row['employee_id']), cert.strip()))
-                except Exception as e:
-                    print(f"Error inserting certification for employee {row['employee_id']}: {e}")
+            conn.commit()
+            
+        except Exception as e:
+            conn.rollback()
+            print(f"Error during import: {str(e)}")
+            raise
+
+def validate_data(df):
+    """
+    Validate the input data before processing
+    """
+    required_columns = [
+        'employee_id', 'full_name', 'department', 'position', 'level',
+        'hire_date', 'base_salary', 'manager_id', 'is_manager'
+    ]
+    
+    missing_columns = [col for col in required_columns if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing required columns: {missing_columns}")
+    
+    if df['employee_id'].duplicated().any():
+        raise ValueError("Duplicate employee IDs found")
+    
+    if not all(isinstance(x, (int, float, np.integer)) for x in df['employee_id']):
+        raise ValueError("Invalid employee_id values")
 
 def main():
+    # Read data from Excel
+    df = pd.read_excel("C:\\Users\\govar\\OneDrive\\Documents\\HRM\\data\\processed\\consultancy_data.xlsx")
+    
+    # Convert hire_date to datetime if it's not already
+    df['hire_date'] = pd.to_datetime(df['hire_date'])
+    
+    # Create connection
+    conn = create_connection()
+    
     try:
-        print("Starting comprehensive HR data import process...")
-        conn, cur = create_hr_database()
+        # Create tables
+        create_tables(conn)
         
-        # Configure input file path
-        excel_file = "path/to/your/hr_data.xlsx"
-        if not os.path.exists(excel_file):
-            print(f"Error: Excel file not found at {excel_file}")
-            sys.exit(1)
-            
-        print(f"Reading Excel file from: {excel_file}")
-        df = pd.read_excel(excel_file)
-        print(f"\nDataframe shape: {df.shape}")
-        print(f"Columns found: {', '.join(df.columns)}")
+        # Import main data
+        import_main_data(conn, df)
         
-        if len(df) == 0:
-            print("Warning: Excel file contains no data!")
-            sys.exit(1)
-            
-        print("\nInserting data into tables...")
+        # Populate analytical tables
+        populate_analytical_tables(conn)
         
-        # Insert data in logical order
-        insert_employee_data(df, conn, cur)
-        insert_performance_and_project_data(df, conn, cur)
-        insert_risk_and_management_data(df, conn, cur)
-        insert_compensation_and_development_data(df, conn, cur)
-        insert_certifications(df, conn, cur)
-        
+        # Commit changes
         conn.commit()
-        
-        # Verify data insertion
-        tables = [
-            'employees', 'performance_metrics', 'project_metrics',
-            'development_metrics', 'risk_assessment', 'management_info',
-            'compensation_metrics', 'employee_certifications'
-         ]
-        print("\nVerifying data insertion:")
-        for table in tables:
-            cur.execute(f"SELECT COUNT(*) FROM {table}")
-            count = cur.fetchone()[0]
-            print(f"{table}: {count} rows")
-            
-        print("\nHR data import process completed successfully!")
+        print("Data import completed successfully!")
         
     except Exception as e:
-        print(f"Error during import process: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
-        sys.exit(1)
+        conn.rollback()
+        print(f"Error during import: {str(e)}")
+        
     finally:
-        if 'conn' in locals():
-            conn.close()
+        conn.close()
 
 if __name__ == "__main__":
     main()

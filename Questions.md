@@ -1,27 +1,31 @@
-
 # 6 Questions for R-DBMS
 
-Here are five focused questions along with one overarching question for a comprehensive visualization that aligns all insights toward a broader goal:
 
-1. **What factors most influence employee retention across different departments?**
+Here are five key analytical questions, followed by a sixth question that ties them together for a comprehensive overview:
 
-   - Analyze relationships between performance ratings, work satisfaction, training hours, team size, and retention rates. This could help in identifying areas where improved support or training might increase retention.
-2. **Which performance metrics (e.g., project completion rate, productivity, engagement) correlate most strongly with high client satisfaction in sales and customer-facing roles?**
+1. **Employee Utilization and Performance by Department**
 
-   - This question targets factors in performance that align with customer satisfaction, which can be critical in customer-facing departments like Sales and IT.
-3. **How does remote work status affect productivity and engagement scores across different roles and departments?**
+   - What are the average utilization and performance scores across departments?
+   - Insights here can reveal departments with underutilized or highly productive employees, helping to optimize resource allocation.
+2. **Retention Risk and Flight Risk Drivers**
 
-   - Investigate whether employees working remotely or in hybrid settings have comparable productivity and engagement levels, which could inform flexible work policies and their effects on team dynamics.
-4. **What is the impact of training hours, certifications, and mentoring on employee performance across various metrics?**
+   - What factors (e.g., compensation, utilization, project complexity) correlate with high flight and retention risks?
+   - Identifying these can help prioritize employee retention initiatives, especially in high-turnover roles or departments.
+3. **Promotion Readiness and Skill Gaps**
 
-   - Examine how development-focused activities (e.g., training, certifications, mentoring) contribute to performance improvements, retention, and overall satisfaction, providing insights into the ROI of professional development programs.
-5. **What are the key drivers of recruitment success in terms of time-to-fill, retention rate, and recruitment source?**
+   - Which departments have the highest and lowest promotion readiness, and what critical skills are most often lacking?
+   - Understanding skill gaps across departments helps target training for high-potential employees.
+4. **Impact of Remote Work and Travel on Employee Engagement**
 
-   - This question seeks to uncover patterns and best practices in recruitment, enabling HR to optimize hiring strategies that lead to long-term employee retention and reduce time-to-hire costs.
+   - How do remote work ratios and travel percentages relate to engagement and performance scores?
+   - This analysis can inform flexible work policies to enhance employee satisfaction and productivity.
+5. **Effect of Specializations and Certifications on Project Outcomes**
 
-### **BIG PICTURE QUESTION:**
+   - Do specific certifications or areas of specialization correlate with higher project satisfaction and on-time delivery?
+   - Analyzing this can guide employee development programs and enhance project outcomes.
+6. **Integrated Workforce Optimization Strategy**
 
-6. **How can we design an optimal employee experience strategy that aligns retention, productivity, and client satisfaction with professional development and recruitment policies?**
-   - This comprehensive question can bring together the insights from all the individual questions. The goal is to create a visualization that highlights how these factors interplay to build a more effective employee experience strategy, ensuring that recruitment, training, performance, and satisfaction align towards a more productive, satisfied, and loyal workforce.
+   - How can we integrate insights from employee utilization, retention risks, promotion readiness, engagement, and specializations to develop a workforce optimization strategy?
+   - This question connects insights from all analyses to form a cohesive, data-driven plan for workforce development and operational efficiency.
 
-Each of these questions can be visualized using Python libraries like Matplotlib, Seaborn, and Plotly to generate insightful dashboards and comprehensive visuals.
+These analyses will be insightful for high ROI decisions in talent management, training, and resource allocation across the company.

@@ -20,15 +20,14 @@ def check_table_existence_and_structure():
     cur = conn.cursor()
     
     expected_tables = [
-        'employees', 'performance_metrics', 'sales_metrics', 'hr_metrics',
-        'it_support_metrics', 'engineering_metrics', 'employee_certifications',
-        'cross_functional_metrics', 'demographic_analysis', 'salary_bands'
+        'employees', 'flight_risk_analysis', 'manager_performance_insights',
+        'promotion_readiness_analysis', 'skills_gap_analysis',
+        'project_performance_metrics', 'compensation_analysis'
     ]
     
     try:
         print("\nChecking table existence and structure:")
         for table in expected_tables:
-            # Check if table exists
             cur.execute("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -39,7 +38,6 @@ def check_table_existence_and_structure():
             exists = cur.fetchone()[0]
             
             if exists:
-                # Get column information
                 cur.execute("""
                     SELECT column_name, data_type, is_nullable
                     FROM information_schema.columns
@@ -57,183 +55,158 @@ def check_table_existence_and_structure():
         cur.close()
         conn.close()
 
-def analyze_data_completeness():
-    """Analyze data completeness and identify potential issues."""
+def analyze_data_quality():
+    """Analyze data quality and completeness."""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        print("\nAnalyzing data completeness:")
+        print("\nAnalyzing data quality:")
         
-        # Check employee counts across tables
-        tables = [
-            'employees', 'performance_metrics', 'sales_metrics', 'hr_metrics',
-            'it_support_metrics', 'engineering_metrics', 'cross_functional_metrics'
+        # Check employee data completeness
+        print("\nEmployee data completeness:")
+        critical_columns = [
+            'full_name', 'department', 'position', 'level', 'hire_date',
+            'base_salary', 'total_comp', 'primary_specialization',
+            'actual_utilization', 'performance_score'
         ]
         
-        for table in tables:
-            cur.execute(f"SELECT COUNT(*) FROM {table}")
-            count = cur.fetchone()[0]
-            print(f"\n{table}:")
-            print(f"  Total records: {count}")
-            
-            if table != 'employees':
-                # Check for employees without metrics
-                cur.execute(f"""
-                    SELECT COUNT(DISTINCT e.employee_id)
-                    FROM employees e
-                    LEFT JOIN {table} m ON e.employee_id = m.employee_id
-                    WHERE m.employee_id IS NULL
-                """)
-                missing = cur.fetchone()[0]
-                print(f"  Employees without metrics: {missing}")
-        
-        # Analyze null values in critical columns
-        print("\nNull value analysis in critical columns:")
-        critical_columns = {
-            'employees': ['name', 'department', 'position', 'hire_date', 'salary'],
-            'performance_metrics': ['project_completion_rate', 'productivity', 'engagement_score'],
-            'sales_metrics': ['quota_attainment', 'deals_closed'],
-            'hr_metrics': ['employee_satisfaction_score', 'retention_rate']
-        }
-        
-        for table, columns in critical_columns.items():
-            print(f"\n{table}:")
-            for column in columns:
-                cur.execute(f"""
-                    SELECT 
-                        COUNT(*) as total_nulls,
-                        ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM {table}), 0), 2) as null_percentage
-                    FROM {table}
-                    WHERE {column} IS NULL
-                """)
-                result = cur.fetchone()
-                print(f"  {column}: {result[0]} nulls ({result[1]}%)")
-    finally:
-        cur.close()
-        conn.close()
-
-def check_data_consistency():
-    """Check for data consistency and referential integrity."""
-    conn = get_db_connection()
-    cur = conn.cursor()
-    
-    try:
-        print("\nChecking data consistency:")
-        
-        # Check for orphaned records
-        metric_tables = [
-            'performance_metrics', 'sales_metrics', 'hr_metrics',
-            'it_support_metrics', 'engineering_metrics', 'cross_functional_metrics'
-        ]
-        
-        for table in metric_tables:
+        for column in critical_columns:
             cur.execute(f"""
-                SELECT COUNT(*)
-                FROM {table} m
-                LEFT JOIN employees e ON e.employee_id = m.employee_id
-                WHERE e.employee_id IS NULL
+                SELECT 
+                    COUNT(*) as total_nulls,
+                    ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM employees), 0), 2) as null_percentage
+                FROM employees
+                WHERE {column} IS NULL
             """)
-            orphaned = cur.fetchone()[0]
-            print(f"\n{table}:")
-            print(f"  Orphaned records: {orphaned}")
+            result = cur.fetchone()
+            print(f"  {column}: {result[0]} nulls ({result[1]}%)")
         
-        # Check for duplicate certifications
-        cur.execute("""
-            SELECT 
-                employee_id, 
-                certification_name, 
-                COUNT(*) as occurrences
-            FROM employee_certifications
-            GROUP BY employee_id, certification_name
-            HAVING COUNT(*) > 1
-        """)
-        duplicates = cur.fetchall()
-        if duplicates:
-            print("\nDuplicate certifications found:")
-            for dup in duplicates:
-                print(f"  Employee {dup[0]}: {dup[1]} ({dup[2]} occurrences)")
+        # Analyze numeric field ranges
+        print("\nNumeric field analysis:")
+        numeric_fields = [
+            'remote_work_ratio', 'travel_percentage', 'utilization_target',
+            'actual_utilization', 'performance_score', 'flight_risk'
+        ]
         
-        # Check date consistency
-        print("\nChecking date consistency:")
-        cur.execute("""
-            SELECT 
-                COUNT(*) as inconsistent_dates
-            FROM employees
-            WHERE 
-                (termination_date IS NOT NULL AND termination_date < hire_date)
-                OR
-                (date_of_birth IS NOT NULL AND hire_date < date_of_birth)
-        """)
-        inconsistent_dates = cur.fetchone()[0]
-        print(f"  Records with inconsistent dates: {inconsistent_dates}")
+        for field in numeric_fields:
+            cur.execute(f"""
+                SELECT 
+                    MIN({field}) as min_val,
+                    MAX({field}) as max_val,
+                    AVG({field}) as avg_val,
+                    COUNT(*) FILTER (WHERE {field} < 0 OR {field} > 100) as out_of_range
+                FROM employees
+                WHERE {field} IS NOT NULL
+            """)
+            result = cur.fetchone()
+            print(f"\n  {field}:")
+            print(f"    Range: {result[0]} to {result[1]}")
+            print(f"    Average: {result[2]:.2f}")
+            print(f"    Out of range values: {result[3]}")
     finally:
         cur.close()
         conn.close()
 
-def analyze_metrics_distribution():
-    """Analyze the distribution of various metrics."""
+def check_analytical_tables_consistency():
+    """Check consistency between main and analytical tables."""
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        print("\nAnalyzing metrics distribution:")
+        print("\nChecking analytical tables consistency:")
+        
+        # Check flight risk analysis coverage
+        cur.execute("""
+            SELECT 
+                COUNT(DISTINCT risk_level) as risk_levels,
+                COUNT(*) as total_records
+            FROM flight_risk_analysis
+        """)
+        result = cur.fetchone()
+        print(f"\nFlight Risk Analysis:")
+        print(f"  Risk levels: {result[0]}")
+        print(f"  Total records: {result[1]}")
+        
+        # Check manager insights coverage
+        cur.execute("""
+            SELECT 
+                COUNT(DISTINCT management_level) as mgmt_levels,
+                COUNT(DISTINCT performance_category) as perf_categories,
+                COUNT(*) as total_records
+            FROM manager_performance_insights
+        """)
+        result = cur.fetchone()
+        print(f"\nManager Performance Insights:")
+        print(f"  Management levels: {result[0]}")
+        print(f"  Performance categories: {result[1]}")
+        print(f"  Total records: {result[2]}")
+        
+        # Check promotion readiness coverage
+        cur.execute("""
+            SELECT 
+                COUNT(DISTINCT readiness_band) as readiness_bands,
+                COUNT(DISTINCT level) as levels,
+                COUNT(*) as total_records
+            FROM promotion_readiness_analysis
+        """)
+        result = cur.fetchone()
+        print(f"\nPromotion Readiness Analysis:")
+        print(f"  Readiness bands: {result[0]}")
+        print(f"  Levels: {result[1]}")
+        print(f"  Total records: {result[2]}")
+    finally:
+        cur.close()
+        conn.close()
+
+def analyze_organizational_metrics():
+    """Analyze key organizational metrics."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    try:
+        print("\nAnalyzing organizational metrics:")
         
         # Department distribution
         cur.execute("""
             SELECT 
                 department,
                 COUNT(*) as count,
-                ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM employees), 2) as percentage
+                ROUND(AVG(base_salary)::numeric, 2) as avg_salary,
+                ROUND(AVG(performance_score)::numeric, 2) as avg_performance,
+                ROUND(AVG(flight_risk)::numeric, 2) as avg_flight_risk
             FROM employees
             GROUP BY department
             ORDER BY count DESC
         """)
-        dept_dist = cur.fetchall()
-        print("\nEmployee distribution by department:")
-        for dept in dept_dist:
-            print(f"  {dept[0]}: {dept[1]} employees ({dept[2]}%)")
+        results = cur.fetchall()
+        print("\nDepartment Analysis:")
+        for r in results:
+            print(f"\n  {r[0]}:")
+            print(f"    Employees: {r[1]}")
+            print(f"    Avg Salary: ${r[2]:,.2f}")
+            print(f"    Avg Performance: {r[3]:.2f}")
+            print(f"    Avg Flight Risk: {r[4]:.2f}%")
         
-        # Performance metrics by department
+        # Management structure
         cur.execute("""
             SELECT 
-                e.department,
-                ROUND(AVG(p.project_completion_rate)::numeric, 2) as avg_completion_rate,
-                ROUND(AVG(p.productivity)::numeric, 2) as avg_productivity,
-                ROUND(AVG(p.engagement_score)::numeric, 2) as avg_engagement,
-                COUNT(*) as sample_size
-            FROM employees e
-            JOIN performance_metrics p ON e.employee_id = p.employee_id
-            GROUP BY e.department
-            ORDER BY avg_productivity DESC
-        """)
-        performance_dist = cur.fetchall()
-        print("\nPerformance metrics by department:")
-        for perf in performance_dist:
-            print(f"\n  {perf[0]} (Sample size: {perf[4]}):")
-            print(f"    Avg Completion Rate: {perf[1]}%")
-            print(f"    Avg Productivity: {perf[2]}")
-            print(f"    Avg Engagement: {perf[3]}")
-        
-        # Salary distribution
-        cur.execute("""
-            SELECT 
-                department,
-                ROUND(MIN(salary)::numeric, 2) as min_salary,
-                ROUND(AVG(salary)::numeric, 2) as avg_salary,
-                ROUND(MAX(salary)::numeric, 2) as max_salary
+                management_level,
+                COUNT(*) as manager_count,
+                ROUND(AVG(direct_reports)::numeric, 2) as avg_direct_reports,
+                ROUND(AVG(team_lead_projects)::numeric, 2) as avg_projects
             FROM employees
-            WHERE salary IS NOT NULL
-            GROUP BY department
-            ORDER BY avg_salary DESC
+            WHERE is_manager = true
+            GROUP BY management_level
+            ORDER BY manager_count DESC
         """)
-        salary_dist = cur.fetchall()
-        print("\nSalary distribution by department:")
-        for sal in salary_dist:
-            print(f"\n  {sal[0]}:")
-            print(f"    Min: ${sal[1]:,.2f}")
-            print(f"    Avg: ${sal[2]:,.2f}")
-            print(f"    Max: ${sal[3]:,.2f}")
+        results = cur.fetchall()
+        print("\nManagement Structure:")
+        for r in results:
+            print(f"\n  {r[0]}:")
+            print(f"    Managers: {r[1]}")
+            print(f"    Avg Direct Reports: {r[2]}")
+            print(f"    Avg Projects Led: {r[3]}")
     finally:
         cur.close()
         conn.close()
@@ -241,18 +214,18 @@ def analyze_metrics_distribution():
 def generate_diagnostic_report():
     """Generate a comprehensive diagnostic report."""
     try:
-        print("Starting comprehensive HR database diagnostics...\n")
+        print("Starting HR Resource Database diagnostics...\n")
         
         # Run all diagnostic checks
         check_table_existence_and_structure()
-        analyze_data_completeness()
-        check_data_consistency()
-        analyze_metrics_distribution()
+        analyze_data_quality()
+        check_analytical_tables_consistency()
+        analyze_organizational_metrics()
         
         print("\nDiagnostic report completed successfully!")
         
     except Exception as e:
-        print(f"Error during diagnostic process: {e}")
+        print(f"Error during diagnostic process: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
