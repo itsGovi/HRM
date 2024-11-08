@@ -148,8 +148,50 @@ def create_tables(conn):
             salary_range JSONB,
             market_position FLOAT,
             PRIMARY KEY (department, level, performance_band)
+        )           
+        """)
+        # Employee Analytics Table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS employee_analytics (
+            employee_id INTEGER PRIMARY KEY REFERENCES employees(employee_id),
+            risk_level VARCHAR(20),
+            risk_factors JSONB,
+            readiness_band VARCHAR(20),
+            readiness_metrics JSONB,
+            performance_metrics JSONB,
+            skill_metrics JSONB,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
+
+        # Manager Analytics Table
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS manager_analytics (
+            manager_id INTEGER PRIMARY KEY REFERENCES employees(employee_id),
+            management_level VARCHAR(20),
+            performance_category VARCHAR(20),
+            team_metrics JSONB,
+            success_metrics JSONB,
+            department_impact JSONB,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+
+        # Department Level Analytics
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS department_level_analytics (
+            department VARCHAR(50),
+            level VARCHAR(20),
+            position VARCHAR(100),
+            employee_count INTEGER,
+            avg_metrics JSONB,
+            risk_distribution JSONB,
+            readiness_distribution JSONB,
+            performance_distribution JSONB,
+            PRIMARY KEY (department, level, position)
+        );
+        """)
+
 
 def import_main_data(conn, df):
     """
@@ -401,6 +443,171 @@ def populate_analytical_tables(conn):
             print(f"Error during import: {str(e)}")
             raise
 
+def populate_detailed_analytics(conn):
+    """Populate the detailed analytics tables using existing CTEs and additional metrics"""
+    with conn.cursor() as cur:
+        try:
+            # Clear existing data
+            cur.execute("TRUNCATE TABLE employee_analytics, manager_analytics, department_analytics")
+            
+            # Populate employee_analytics
+            cur.execute("""
+                WITH risk_groups AS (
+                    SELECT 
+                        employee_id,
+                        CASE 
+                            WHEN flight_risk >= 70 THEN 'High'
+                            WHEN flight_risk >= 40 THEN 'Medium'
+                            ELSE 'Low'
+                        END as risk_level,
+                        jsonb_build_object(
+                            'flight_risk', flight_risk,
+                            'retention_risk', retention_risk,
+                            'engagement_score', engagement_score,
+                            'performance_score', performance_score
+                        ) as risk_factors
+                    FROM employees
+                ),
+                readiness_metrics AS (
+                    SELECT 
+                        employee_id,
+                        CASE 
+                            WHEN promotion_readiness >= 80 THEN 'Ready Now'
+                            WHEN promotion_readiness >= 60 THEN 'Ready Soon'
+                            WHEN promotion_readiness >= 40 THEN 'Developing'
+                            ELSE 'Not Ready'
+                        END as readiness_band,
+                        jsonb_build_object(
+                            'promotion_readiness', promotion_readiness,
+                            'knowledge_sharing_score', knowledge_sharing_score,
+                            'training_hours', training_hours,
+                            'mentorship_hours', mentorship_hours
+                        ) as readiness_metrics
+                    FROM employees
+                )
+                INSERT INTO employee_analytics (
+                    employee_id, 
+                    risk_level, 
+                    risk_factors, 
+                    readiness_band, 
+                    readiness_metrics,
+                    performance_metrics,
+                    skill_metrics
+                )
+                SELECT 
+                    e.employee_id,
+                    rg.risk_level,
+                    rg.risk_factors,
+                    rm.readiness_band,
+                    rm.readiness_metrics,
+                    jsonb_build_object(
+                        'performance_score', e.performance_score,
+                        'innovation_score', e.innovation_score,
+                        'delivery_quality', e.delivery_quality,
+                        'project_satisfaction', e.project_satisfaction
+                    ) as performance_metrics,
+                    jsonb_build_object(
+                        'primary_specialization', e.primary_specialization,
+                        'secondary_specialization', e.secondary_specialization,
+                        'certifications', e.certifications,
+                        'avg_project_complexity', e.avg_project_complexity
+                    ) as skill_metrics
+                FROM employees e
+                JOIN risk_groups rg ON e.employee_id = rg.employee_id
+                JOIN readiness_metrics rm ON e.employee_id = rm.employee_id
+            """)
+
+            # Populate manager_analytics
+            cur.execute("""
+                WITH manager_metrics AS (
+                    SELECT 
+                        e.manager_id,
+                        e.management_level,
+                        CASE 
+                            WHEN e.performance_score >= 4.5 THEN 'Top'
+                            WHEN e.performance_score >= 3.5 THEN 'Average'
+                            ELSE 'Below'
+                        END as performance_category,
+                        jsonb_build_object(
+                            'team_size', COUNT(*),
+                            'avg_team_performance', AVG(e.performance_score),
+                            'avg_team_satisfaction', AVG(e.project_satisfaction),
+                            'avg_retention_rate', 1 - AVG(e.flight_risk/100)
+                        ) as team_metrics
+                    FROM employees e
+                    WHERE e.manager_id IS NOT NULL
+                    GROUP BY e.manager_id, e.management_level, e.performance_score
+                )
+                INSERT INTO manager_analytics (
+                    manager_id,
+                    management_level,
+                    performance_category,
+                    team_metrics,
+                    success_metrics,
+                    department_impact
+                )
+                SELECT 
+                    e.employee_id,
+                    e.management_level,
+                    mm.performance_category,
+                    mm.team_metrics,
+                    jsonb_build_object(
+                        'knowledge_sharing_score', e.knowledge_sharing_score,
+                        'mentorship_hours', e.mentorship_hours,
+                        'team_lead_projects', e.team_lead_projects,
+                        'span_of_control', e.span_of_control
+                    ) as success_metrics,
+                    jsonb_build_object(
+                        'department', e.department,
+                        'direct_reports', e.direct_reports,
+                        'projects_on_time', e.projects_on_time
+                    ) as department_impact
+                FROM employees e
+                JOIN manager_metrics mm ON e.employee_id = mm.manager_id
+                WHERE e.is_manager = true
+            """)
+
+            # Populate department_analytics
+            cur.execute("""
+                INSERT INTO department_analytics
+                SELECT 
+                    e.department,
+                    e.level,
+                    e.position,
+                    COUNT(*) as employee_count,
+                    jsonb_build_object(
+                        'avg_performance', AVG(e.performance_score),
+                        'avg_satisfaction', AVG(e.project_satisfaction),
+                        'avg_utilization', AVG(e.actual_utilization),
+                        'avg_salary', AVG(e.base_salary)
+                    ) as avg_metrics,
+                    jsonb_build_object(
+                        'high_risk', COUNT(*) FILTER (WHERE e.flight_risk >= 70),
+                        'medium_risk', COUNT(*) FILTER (WHERE e.flight_risk >= 40 AND e.flight_risk < 70),
+                        'low_risk', COUNT(*) FILTER (WHERE e.flight_risk < 40)
+                    ) as risk_distribution,
+                    jsonb_build_object(
+                        'ready_now', COUNT(*) FILTER (WHERE e.promotion_readiness >= 80),
+                        'ready_soon', COUNT(*) FILTER (WHERE e.promotion_readiness >= 60 AND e.promotion_readiness < 80),
+                        'developing', COUNT(*) FILTER (WHERE e.promotion_readiness >= 40 AND e.promotion_readiness < 60),
+                        'not_ready', COUNT(*) FILTER (WHERE e.promotion_readiness < 40)
+                    ) as readiness_distribution,
+                    jsonb_build_object(
+                        'top_performers', COUNT(*) FILTER (WHERE e.performance_score >= 4.5),
+                        'average_performers', COUNT(*) FILTER (WHERE e.performance_score >= 3.5 AND e.performance_score < 4.5),
+                        'below_average', COUNT(*) FILTER (WHERE e.performance_score < 3.5)
+                    ) as performance_distribution
+                FROM employees e
+                GROUP BY e.department, e.level, e.position
+            """)
+
+            conn.commit()
+            print("Detailed analytics tables populated successfully!")
+        except Exception as e:
+            conn.rollback()
+            print(f"Error populating detailed analytics: {e}")
+            raise
+
 def validate_data(df):
     """
     Validate the input data before processing
@@ -421,35 +628,19 @@ def validate_data(df):
         raise ValueError("Invalid employee_id values")
 
 def main():
-    # Read data from Excel
     df = pd.read_excel("C:\\Users\\govar\\OneDrive\\Documents\\HRM\\data\\processed\\consultancy_data.xlsx")
-    
-    # Convert hire_date to datetime if it's not already
     df['hire_date'] = pd.to_datetime(df['hire_date'])
-    
-    # Create connection
-    conn = create_connection()
-    
-    try:
-        # Create tables
-        create_tables(conn)
-        
-        # Import main data
-        import_main_data(conn, df)
-        
-        # Populate analytical tables
-        populate_analytical_tables(conn)
-        
-        # Commit changes
-        conn.commit()
-        print("Data import completed successfully!")
-        
-    except Exception as e:
-        conn.rollback()
-        print(f"Error during import: {str(e)}")
-        
-    finally:
-        conn.close()
+    with create_connection() as conn:
+        try:
+            create_tables(conn)
+            import_main_data(conn, df)
+            populate_analytical_tables(conn)
+            populate_detailed_analytics(conn)
+            conn.commit()
+            print("Data import completed successfully!")
+        except Exception as e:
+            conn.rollback()
+            print(f"Error during import: {e}")
 
 if __name__ == "__main__":
     main()
