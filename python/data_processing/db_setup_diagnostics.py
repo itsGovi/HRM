@@ -1,11 +1,10 @@
 import psycopg2
-import pandas as pd
-from datetime import datetime
-import json
 import sys
+from datetime import datetime
+from io import StringIO
+import os
 
 def get_db_connection():
-    """Create a connection to the PostgreSQL database."""
     return psycopg2.connect(
         dbname="hr_resource_db",
         user="postgres",
@@ -14,81 +13,93 @@ def get_db_connection():
         port="5432"
     )
 
+def capture_output(func):
+    """Decorator to capture print output"""
+    def wrapper(*args, **kwargs):
+        stdout = StringIO()
+        sys.stdout = stdout
+        func(*args, **kwargs)
+        sys.stdout = sys.__stdout__
+        return stdout.getvalue()
+    return wrapper
+
+@capture_output
 def check_table_existence_and_structure():
-    """Check if all required tables exist and verify their structure."""
     conn = get_db_connection()
     cur = conn.cursor()
     
     expected_tables = [
-        'employees', 'flight_risk_analysis', 'manager_performance_insights',
-        'promotion_readiness_analysis', 'skills_gap_analysis',
-        'project_performance_metrics', 'compensation_analysis'
+        'employees',
+        'employee_analytics',
+        'manager_analytics',
+        'department_analytics',
+        'flight_risk_analysis',
+        'manager_performance_insights',
+        'promotion_readiness_analysis',
+        'skills_gap_analysis',
+        'project_performance_metrics',
+        'compensation_analysis'
     ]
     
     try:
         print("\nChecking table existence and structure:")
         for table in expected_tables:
             cur.execute("""
-                SELECT EXISTS (
-                    SELECT FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND table_name = %s
-                );
+                SELECT column_name, data_type 
+                FROM information_schema.columns 
+                WHERE table_schema = 'public' AND table_name = %s
             """, (table,))
-            exists = cur.fetchone()[0]
+            columns = cur.fetchall()
             
-            if exists:
-                cur.execute("""
-                    SELECT column_name, data_type, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                    AND table_name = %s;
-                """, (table,))
-                columns = cur.fetchall()
-                
-                print(f"\n✓ Table '{table}' exists with {len(columns)} columns:")
-                for col in columns:
-                    print(f"  - {col[0]}: {col[1]} (Nullable: {col[2]})")
+            cur.execute("""
+                SELECT COUNT(*) 
+                FROM {}
+            """.format(table))
+            row_count = cur.fetchone()[0]
+            
+            if columns:
+                print(f"\n[OK] Table '{table}' exists with {len(columns)} columns and {row_count} rows")
+                print("  Columns:")
+                for col_name, col_type in columns:
+                    print(f"    - {col_name} ({col_type})")
             else:
-                print(f"✗ Table '{table}' does not exist!")
+                print(f"[X] Table '{table}' does not exist!")
     finally:
         cur.close()
         conn.close()
 
-def analyze_data_quality():
-    """Analyze data quality and completeness."""
+@capture_output
+def analyze_employee_data_quality():
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        print("\nAnalyzing data quality:")
+        print("\nAnalyzing employee data quality:")
         
-        # Check employee data completeness
-        print("\nEmployee data completeness:")
         critical_columns = [
             'full_name', 'department', 'position', 'level', 'hire_date',
             'base_salary', 'total_comp', 'primary_specialization',
-            'actual_utilization', 'performance_score'
+            'actual_utilization', 'performance_score', 'manager_id'
         ]
         
         for column in critical_columns:
             cur.execute(f"""
                 SELECT 
                     COUNT(*) as total_nulls,
-                    ROUND(COUNT(*) * 100.0 / NULLIF((SELECT COUNT(*) FROM employees), 0), 2) as null_percentage
-                FROM employees
+                    ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM employees), 2) as null_percentage
+                FROM employees 
                 WHERE {column} IS NULL
             """)
-            result = cur.fetchone()
-            print(f"  {column}: {result[0]} nulls ({result[1]}%)")
+            nulls, percentage = cur.fetchone()
+            print(f"  {column}: {nulls} nulls ({percentage}%)")
         
-        # Analyze numeric field ranges
-        print("\nNumeric field analysis:")
         numeric_fields = [
             'remote_work_ratio', 'travel_percentage', 'utilization_target',
-            'actual_utilization', 'performance_score', 'flight_risk'
+            'actual_utilization', 'performance_score', 'flight_risk',
+            'promotion_readiness', 'knowledge_sharing_score'
         ]
         
+        print("\nNumeric field ranges:")
         for field in numeric_fields:
             cur.execute(f"""
                 SELECT 
@@ -96,133 +107,196 @@ def analyze_data_quality():
                     MAX({field}) as max_val,
                     AVG({field}) as avg_val,
                     COUNT(*) FILTER (WHERE {field} < 0 OR {field} > 100) as out_of_range
-                FROM employees
+                FROM employees 
                 WHERE {field} IS NOT NULL
             """)
-            result = cur.fetchone()
+            min_val, max_val, avg_val, out_of_range = cur.fetchone()
             print(f"\n  {field}:")
-            print(f"    Range: {result[0]} to {result[1]}")
-            print(f"    Average: {result[2]:.2f}")
-            print(f"    Out of range values: {result[3]}")
+            print(f"    Range: {min_val:.2f} to {max_val:.2f}")
+            print(f"    Average: {avg_val:.2f}")
+            print(f"    Out of range values: {out_of_range}")
+            
     finally:
         cur.close()
         conn.close()
 
-def check_analytical_tables_consistency():
-    """Check consistency between main and analytical tables."""
+@capture_output
+def check_analytics_consistency():
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        print("\nChecking analytical tables consistency:")
+        print("\nChecking analytics consistency:")
         
-        # Check flight risk analysis coverage
         cur.execute("""
             SELECT 
+                COUNT(*) as total_records,
                 COUNT(DISTINCT risk_level) as risk_levels,
-                COUNT(*) as total_records
-            FROM flight_risk_analysis
+                COUNT(DISTINCT readiness_band) as readiness_bands
+            FROM employee_analytics
         """)
-        result = cur.fetchone()
-        print(f"\nFlight Risk Analysis:")
-        print(f"  Risk levels: {result[0]}")
-        print(f"  Total records: {result[1]}")
+        total, risk_levels, readiness_bands = cur.fetchone()
+        print(f"\nEmployee Analytics:")
+        print(f"  Total records: {total}")
+        print(f"  Risk levels: {risk_levels}")
+        print(f"  Readiness bands: {readiness_bands}")
         
-        # Check manager insights coverage
         cur.execute("""
             SELECT 
+                COUNT(*) as total_records,
                 COUNT(DISTINCT management_level) as mgmt_levels,
-                COUNT(DISTINCT performance_category) as perf_categories,
-                COUNT(*) as total_records
-            FROM manager_performance_insights
+                COUNT(DISTINCT performance_category) as perf_categories
+            FROM manager_analytics
         """)
-        result = cur.fetchone()
-        print(f"\nManager Performance Insights:")
-        print(f"  Management levels: {result[0]}")
-        print(f"  Performance categories: {result[1]}")
-        print(f"  Total records: {result[2]}")
+        total, mgmt_levels, perf_cats = cur.fetchone()
+        print(f"\nManager Analytics:")
+        print(f"  Total records: {total}")
+        print(f"  Management levels: {mgmt_levels}")
+        print(f"  Performance categories: {perf_cats}")
         
-        # Check promotion readiness coverage
         cur.execute("""
             SELECT 
-                COUNT(DISTINCT readiness_band) as readiness_bands,
-                COUNT(DISTINCT level) as levels,
-                COUNT(*) as total_records
-            FROM promotion_readiness_analysis
+                COUNT(*) as total_records,
+                COUNT(DISTINCT department) as departments,
+                COUNT(DISTINCT level) as levels
+            FROM department_analytics
         """)
-        result = cur.fetchone()
-        print(f"\nPromotion Readiness Analysis:")
-        print(f"  Readiness bands: {result[0]}")
-        print(f"  Levels: {result[1]}")
-        print(f"  Total records: {result[2]}")
+        total, depts, levels = cur.fetchone()
+        print(f"\nDepartment Analytics:")
+        print(f"  Total records: {total}")
+        print(f"  Unique departments: {depts}")
+        print(f"  Unique levels: {levels}")
+        
+        print("\nCross-table consistency checks:")
+        
+        cur.execute("""
+            SELECT 
+                (SELECT COUNT(*) FROM employees) as total_employees,
+                (SELECT COUNT(*) FROM employee_analytics) as total_analytics
+        """)
+        total_emp, total_analytics = cur.fetchone()
+        print(f"  Employee coverage: {total_analytics}/{total_emp} ({(total_analytics/total_emp*100):.2f}%)")
+        
+        cur.execute("""
+            SELECT 
+                (SELECT COUNT(*) FROM employees WHERE is_manager = true) as total_managers,
+                (SELECT COUNT(*) FROM manager_analytics) as total_manager_analytics
+        """)
+        total_mgr, total_mgr_analytics = cur.fetchone()
+        print(f"  Manager coverage: {total_mgr_analytics}/{total_mgr} ({(total_mgr_analytics/total_mgr*100):.2f}%)")
+        
     finally:
         cur.close()
         conn.close()
 
-def analyze_organizational_metrics():
-    """Analyze key organizational metrics."""
+@capture_output
+def analyze_metrics_distribution():
     conn = get_db_connection()
     cur = conn.cursor()
     
     try:
-        print("\nAnalyzing organizational metrics:")
+        print("\nAnalyzing metrics distribution:")
         
-        # Department distribution
         cur.execute("""
             SELECT 
                 department,
-                COUNT(*) as count,
-                ROUND(AVG(base_salary)::numeric, 2) as avg_salary,
-                ROUND(AVG(performance_score)::numeric, 2) as avg_performance,
-                ROUND(AVG(flight_risk)::numeric, 2) as avg_flight_risk
-            FROM employees
-            GROUP BY department
-            ORDER BY count DESC
+                level,
+                employee_count,
+                avg_metrics->>'avg_performance' as avg_performance,
+                avg_metrics->>'avg_salary' as avg_salary,
+                risk_distribution->>'high_risk' as high_risk_count,
+                readiness_distribution->>'ready_now' as ready_now_count
+            FROM department_analytics
+            ORDER BY department, level
         """)
-        results = cur.fetchall()
-        print("\nDepartment Analysis:")
-        for r in results:
-            print(f"\n  {r[0]}:")
-            print(f"    Employees: {r[1]}")
-            print(f"    Avg Salary: ${r[2]:,.2f}")
-            print(f"    Avg Performance: {r[3]:.2f}")
-            print(f"    Avg Flight Risk: {r[4]:.2f}%")
         
-        # Management structure
+        current_dept = None
+        for row in cur.fetchall():
+            dept, level, count, perf, salary, high_risk, ready = row
+            if dept != current_dept:
+                print(f"\n{dept}:")
+                current_dept = dept
+            print(f"  {level}:")
+            print(f"    Employees: {count}")
+            print(f"    Avg Performance: {float(perf):.2f}")
+            print(f"    Avg Salary: ${float(salary):,.2f}")
+            print(f"    High Risk Employees: {high_risk}")
+            print(f"    Ready for Promotion: {ready}")
+        
+        print("\nManager Level Distribution:")
         cur.execute("""
             SELECT 
                 management_level,
-                COUNT(*) as manager_count,
-                ROUND(AVG(direct_reports)::numeric, 2) as avg_direct_reports,
-                ROUND(AVG(team_lead_projects)::numeric, 2) as avg_projects
-            FROM employees
-            WHERE is_manager = true
-            GROUP BY management_level
-            ORDER BY manager_count DESC
+                performance_category,
+                COUNT(*) as count,
+                AVG((team_metrics->>'avg_team_performance')::float) as avg_team_perf
+            FROM manager_analytics
+            GROUP BY management_level, performance_category
+            ORDER BY management_level, performance_category
         """)
-        results = cur.fetchall()
-        print("\nManagement Structure:")
-        for r in results:
-            print(f"\n  {r[0]}:")
-            print(f"    Managers: {r[1]}")
-            print(f"    Avg Direct Reports: {r[2]}")
-            print(f"    Avg Projects Led: {r[3]}")
+        
+        current_level = None
+        for row in cur.fetchall():
+            level, category, count, team_perf = row
+            if level != current_level:
+                print(f"\n  {level}:")
+                current_level = level
+            print(f"    {category}: {count} managers (Avg Team Perf: {team_perf:.2f})")
+            
     finally:
         cur.close()
         conn.close()
 
+def create_markdown_report(outputs):
+    """Create a markdown report from the diagnostic outputs"""
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    report_content = f"""# HR Resource Database Diagnostic Report
+Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## Table Structure and Data Overview
+{outputs['table_structure']}
+
+## Data Quality Analysis
+{outputs['data_quality']}
+
+## Analytics Consistency Check
+{outputs['analytics']}
+
+## Metrics Distribution Analysis
+{outputs['metrics']}
+"""
+    
+    # Create reports directory if it doesn't exist
+    os.makedirs('reports', exist_ok=True)
+    
+    # Save the report with UTF-8 encoding
+    filename = f'reports/hr_diagnostic_report_{timestamp}.md'
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(report_content)
+    
+    return filename
+
 def generate_diagnostic_report():
-    """Generate a comprehensive diagnostic report."""
     try:
-        print("Starting HR Resource Database diagnostics...\n")
+        print(f"Starting HR Resource Database diagnostics at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...\n")
         
-        # Run all diagnostic checks
-        check_table_existence_and_structure()
-        analyze_data_quality()
-        check_analytical_tables_consistency()
-        analyze_organizational_metrics()
+        # Collect outputs from each function
+        outputs = {
+            'table_structure': check_table_existence_and_structure(),
+            'data_quality': analyze_employee_data_quality(),
+            'analytics': check_analytics_consistency(),
+            'metrics': analyze_metrics_distribution()
+        }
         
-        print("\nDiagnostic report completed successfully!")
+        # Create markdown report
+        report_file = create_markdown_report(outputs)
+        
+        print(f"\nDiagnostic report completed successfully!")
+        print(f"Report saved to: {report_file}")
+        
+        # Also print to terminal for immediate viewing
+        for output in outputs.values():
+            print(output)
         
     except Exception as e:
         print(f"Error during diagnostic process: {str(e)}")

@@ -1,31 +1,32 @@
 # 6 Questions for R-DBMS
 
 
+
 Here are five key analytical questions, followed by a sixth question that ties them together for a comprehensive overview:
 
-1. **Employee Utilization and Performance by Department**
+1. **Performance and Compensation Alignment**
 
-   - What are the average utilization and performance scores across departments?
-   - Insights here can reveal departments with underutilized or highly productive employees, helping to optimize resource allocation.
-2. **Retention Risk and Flight Risk Drivers**
+   - How do employee performance scores correlate with their total compensation within different departments and job levels?
+   - This analysis could reveal if compensation strategies are effectively incentivizing high performance.
+2. **Impact of Remote Work on Productivity and Engagement**
 
-   - What factors (e.g., compensation, utilization, project complexity) correlate with high flight and retention risks?
-   - Identifying these can help prioritize employee retention initiatives, especially in high-turnover roles or departments.
-3. **Promotion Readiness and Skill Gaps**
+   - What patterns exist between remote work ratios, productivity (utilization rate), and engagement scores across different regions and roles?
+   - This can help refine remote work policies, ensuring productivity is maintained without impacting engagement.
+3. **Flight Risk Factors and Retention Strategies**
 
-   - Which departments have the highest and lowest promotion readiness, and what critical skills are most often lacking?
-   - Understanding skill gaps across departments helps target training for high-potential employees.
-4. **Impact of Remote Work and Travel on Employee Engagement**
+   - What are the primary factors associated with high flight and retention risks by department? How do these align with factors like billing rate and active projects?
+   - Addressing this could improve retention by focusing on areas with high turnover risk.
+4. **Skills and Project Outcomes**
 
-   - How do remote work ratios and travel percentages relate to engagement and performance scores?
-   - This analysis can inform flexible work policies to enhance employee satisfaction and productivity.
-5. **Effect of Specializations and Certifications on Project Outcomes**
+   - How do specific skills and certifications correlate with project outcomes (on-time completion and satisfaction ratings)?
+   - This will help target training or hiring strategies to ensure key skills are aligned with successful project execution.
+5. **Promotion Readiness and Knowledge Sharing**
 
-   - Do specific certifications or areas of specialization correlate with higher project satisfaction and on-time delivery?
-   - Analyzing this can guide employee development programs and enhance project outcomes.
-6. **Integrated Workforce Optimization Strategy**
+   - Are employees who score high in promotion readiness also contributing significantly to knowledge-sharing metrics (training and mentorship hours)?
+   - This can identify potential leaders who not only excel in performance but also enhance team capabilities.
+6. **Comprehensive Workforce Strategy**
 
-   - How can we integrate insights from employee utilization, retention risks, promotion readiness, engagement, and specializations to develop a workforce optimization strategy?
-   - This question connects insights from all analyses to form a cohesive, data-driven plan for workforce development and operational efficiency.
+   - How can we integrate findings from performance alignment, remote productivity, flight risk, skill impact, and promotion readiness to formulate a comprehensive workforce optimization strategy?
+   - This final analysis can connect the dots between these metrics, guiding a balanced approach to employee development, retention, and overall productivity for maximum ROI.
 
-These analyses will be insightful for high ROI decisions in talent management, training, and resource allocation across the company.
+These questions would allow for a thorough exploration of the dataset, producing valuable insights for strategic decision-making across the company.

@@ -179,7 +179,7 @@ def create_tables(conn):
 
         # Department Level Analytics
         cur.execute("""
-        CREATE TABLE IF NOT EXISTS department_level_analytics (
+        CREATE TABLE IF NOT EXISTS department_analytics (
             department VARCHAR(50),
             level VARCHAR(20),
             position VARCHAR(100),
@@ -517,26 +517,18 @@ def populate_detailed_analytics(conn):
                 JOIN readiness_metrics rm ON e.employee_id = rm.employee_id
             """)
 
-            # Populate manager_analytics
+            # Populate manager_analytics with fixed query
             cur.execute("""
-                WITH manager_metrics AS (
+                WITH team_metrics AS (
                     SELECT 
                         e.manager_id,
-                        e.management_level,
-                        CASE 
-                            WHEN e.performance_score >= 4.5 THEN 'Top'
-                            WHEN e.performance_score >= 3.5 THEN 'Average'
-                            ELSE 'Below'
-                        END as performance_category,
-                        jsonb_build_object(
-                            'team_size', COUNT(*),
-                            'avg_team_performance', AVG(e.performance_score),
-                            'avg_team_satisfaction', AVG(e.project_satisfaction),
-                            'avg_retention_rate', 1 - AVG(e.flight_risk/100)
-                        ) as team_metrics
+                        COUNT(*) as team_size,
+                        AVG(e.performance_score) as avg_team_performance,
+                        AVG(e.project_satisfaction) as avg_team_satisfaction,
+                        1 - AVG(e.flight_risk/100) as avg_retention_rate
                     FROM employees e
                     WHERE e.manager_id IS NOT NULL
-                    GROUP BY e.manager_id, e.management_level, e.performance_score
+                    GROUP BY e.manager_id
                 )
                 INSERT INTO manager_analytics (
                     manager_id,
@@ -549,8 +541,17 @@ def populate_detailed_analytics(conn):
                 SELECT 
                     e.employee_id,
                     e.management_level,
-                    mm.performance_category,
-                    mm.team_metrics,
+                    CASE 
+                        WHEN e.performance_score >= 4.5 THEN 'Top'
+                        WHEN e.performance_score >= 3.5 THEN 'Average'
+                        ELSE 'Below'
+                    END as performance_category,
+                    jsonb_build_object(
+                        'team_size', COALESCE(tm.team_size, 0),
+                        'avg_team_performance', COALESCE(tm.avg_team_performance, 0),
+                        'avg_team_satisfaction', COALESCE(tm.avg_team_satisfaction, 0),
+                        'avg_retention_rate', COALESCE(tm.avg_retention_rate, 0)
+                    ) as team_metrics,
                     jsonb_build_object(
                         'knowledge_sharing_score', e.knowledge_sharing_score,
                         'mentorship_hours', e.mentorship_hours,
@@ -563,7 +564,7 @@ def populate_detailed_analytics(conn):
                         'projects_on_time', e.projects_on_time
                     ) as department_impact
                 FROM employees e
-                JOIN manager_metrics mm ON e.employee_id = mm.manager_id
+                LEFT JOIN team_metrics tm ON e.employee_id = tm.manager_id
                 WHERE e.is_manager = true
             """)
 
