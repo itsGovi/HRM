@@ -1,6 +1,5 @@
 # database.py
 import os
-from psutil import net_connections
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 

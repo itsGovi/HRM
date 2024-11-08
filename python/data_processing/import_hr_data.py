@@ -250,7 +250,6 @@ def import_main_data(conn, df):
                 print(f"Row data: {row_data}")
                 raise
 
-
 def populate_analytical_tables(conn):
     with conn.cursor() as cur:
         try:
