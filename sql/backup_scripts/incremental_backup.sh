@@ -1,65 +1,96 @@
 #!/bin/bash
 
 # Configuration
-export PGPASSWORD='1234'
 BACKUP_DIR="./data/backup_records"
 DB_NAME="hr_resource_db"
 DB_USER="postgres"
+PGPASSWORD="1234"
+REPO_ROOT=$(git rev-parse --show-toplevel)
+DATE_FORMAT="+%Y-%m-%d"
+CURRENT_DATE=$(date "$DATE_FORMAT")
 
-# Create backup directory if it doesn't exist
-mkdir -p "$BACKUP_DIR"
+# Create backup directory structure
+mkdir -p "$BACKUP_DIR/code_changes"
+mkdir -p "$BACKUP_DIR/database_changes"
 
-# Correct the weekly date range to cover Monday to Sunday
-WEEK_START=$(date -d 'last-monday' +%Y-%m-%d)
-WEEK_END=$(date -d "$WEEK_START +6 days" +%Y-%m-%d)
-FILE_NAME="${WEEK_START}_to_${WEEK_END}.sql"
-CURRENT_DATE=$(date '+%Y-%m-%d')
-
-# Function to get the last backup date
-get_last_backup_date() {
-    if [ -f "$BACKUP_DIR/last_backup_date" ]; then
-        cat "$BACKUP_DIR/last_backup_date"
-    else
-        echo "1970-01-01 00:00:00"
+# Function to backup modified files in repository
+backup_modified_files() {
+    echo "Backing up modified files..."
+    
+    # Get list of staged files
+    STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
+    
+    if [ -n "$STAGED_FILES" ]; then
+        # Create a dated directory for today's changes
+        BACKUP_PATH="$BACKUP_DIR/code_changes/$CURRENT_DATE"
+        mkdir -p "$BACKUP_PATH"
+        
+        # Copy each modified file to backup directory with its full path structure
+        for file in $STAGED_FILES; do
+            if [ -f "$file" ]; then
+                # Create directory structure
+                mkdir -p "$BACKUP_PATH/$(dirname "$file")"
+                # Copy file with its changes
+                cp "$file" "$BACKUP_PATH/$file"
+                echo "Backed up: $file"
+            fi
+        done
+        
+        # Create a change log
+        echo "Changes for $CURRENT_DATE:" > "$BACKUP_PATH/changelog.txt"
+        git diff --cached --name-status >> "$BACKUP_PATH/changelog.txt"
     fi
 }
 
-# Get last backup date
-LAST_BACKUP=$(get_last_backup_date)
-
-# Check if today's changes have already been recorded in this week's file
-if ! grep -q "### Changes for $CURRENT_DATE ###" "$BACKUP_DIR/$FILE_NAME"; then
-    # Add a daily header for today's changes if it doesn't already exist
-    echo -e "\n\n### Changes for $CURRENT_DATE ###" >> "$BACKUP_DIR/$FILE_NAME"
-fi
-
-# Function to backup modified data from a table
-backup_modified_table() {
-    local table=$1
-    echo "-- Modified records in $table on $CURRENT_DATE" >> "$BACKUP_DIR/$FILE_NAME"
+# Function to backup modified database tables
+backup_modified_tables() {
+    echo "Backing up database changes..."
     
-    pg_dump -U "$DB_USER" -d "$DB_NAME" \
-        --data-only \
-        --table="$table" \
-        --where="updated_at > '$LAST_BACKUP'" \
-        >> "$BACKUP_DIR/$FILE_NAME"
+    # Create dated SQL file
+    DB_BACKUP_FILE="$BACKUP_DIR/database_changes/${CURRENT_DATE}_db_changes.sql"
+    
+    # Get list of modified tables (you'll need to implement your own logic here)
+    MODIFIED_TABLES="employees employee_analytics manager_analytics department_analytics"
+    
+    for table in $MODIFIED_TABLES; do
+        echo "-- Backup of $table on $CURRENT_DATE" >> "$DB_BACKUP_FILE"
+        PGPASSWORD=$PGPASSWORD pg_dump -U $DB_USER -d $DB_NAME \
+            --table="$table" \
+            --data-only \
+            --column-inserts >> "$DB_BACKUP_FILE"
+    done
 }
 
-# Backup modified data from each table
-tables=("departments" "positions" "employees" "skills" "employee_skills" "leave_requests")
+# Function to create a summary report
+create_backup_report() {
+    REPORT_FILE="$BACKUP_DIR/backup_report_${CURRENT_DATE}.txt"
+    
+    echo "Backup Report - $CURRENT_DATE" > "$REPORT_FILE"
+    echo "================================" >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+    
+    # Code changes summary
+    echo "Code Changes:" >> "$REPORT_FILE"
+    echo "-------------" >> "$REPORT_FILE"
+    git diff --cached --name-status >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+    
+    # Database changes summary
+    echo "Database Changes:" >> "$REPORT_FILE"
+    echo "-----------------" >> "$REPORT_FILE"
+    echo "Modified tables backed up: $MODIFIED_TABLES" >> "$REPORT_FILE"
+}
 
-for table in "${tables[@]}"; do
-    backup_modified_table "$table"
-done
+# Main execution
+echo "Starting backup process..."
 
-# Add a commit statement to finalize the transaction block
-echo "COMMIT;" >> "$BACKUP_DIR/$FILE_NAME"
+# Backup code changes
+backup_modified_files
 
-# Update last backup date for future reference
-date '+%Y-%m-%d %H:%M:%S' > "$BACKUP_DIR/last_backup_date"
+# Backup database changes
+backup_modified_tables
 
-# Remove PGPASSWORD from environment
-unset PGPASSWORD
+# Create report
+create_backup_report
 
-# Confirmation message
-echo "Incremental backup completed for $CURRENT_DATE and saved in $FILE_NAME."
+echo "Backup completed successfully!"
