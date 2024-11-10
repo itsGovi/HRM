@@ -13,7 +13,15 @@ __pycache__/
 # Credentials
 .env
 config.ini
+.vscode/settings.json
 
 # OS specific
 .DS_Store
-Thumbs.db
+Thumbs.db.env
+*.pyc
+__pycache__/
+.vscode/
+.env
+*.pyc
+__pycache__/
+.vscode/

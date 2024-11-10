@@ -1,0 +1,17 @@
+Backup Report - 2024-11-10
+================================
+
+Code Changes:
+-------------
+A	data/backup_records/code_changes/2024-11-09/changelog.txt
+R100	data/backup_records/2024-11-04_to_2024-11-10.sql	data/backup_records/code_changes/2024-11-09/data/backup_records/2024-11-04_to_2024-11-10.sql
+A	data/backup_records/code_changes/2024-11-09/data/backup_records/last_backup_date
+A	data/backup_records/code_changes/2024-11-09/sql/backup_scripts/incremental_backup.sh
+A	data/backup_records/database_changes/2024-11-09_db_changes.sql
+M	python/data_processing/import_hr_data.py
+D	reports/hr_diagnostic_report_2024-11-08_17-12-49.md
+M	sql/queries/rough_work.sql
+
+Database Changes:
+-----------------
+Modified tables backed up: employees employee_analytics manager_analytics department_analytics
