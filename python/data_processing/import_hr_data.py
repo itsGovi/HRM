@@ -3,7 +3,7 @@ import psycopg2
 import numpy as np
 
 def create_connection():
-    return psycopg2.connect(
+    return psycopg2.connect(                # PostgreSQL adapter for Python
         dbname="hr_resource_db",
         user="postgres",
         password="1234",
@@ -12,7 +12,7 @@ def create_connection():
     )
 
 def create_tables(conn):
-    with conn.cursor() as cur:
+    with conn.cursor() as cur: # a `cursor` is a tool for managing query execution
         # Main employees table
         cur.execute("""
         CREATE TABLE IF NOT EXISTS employees (
@@ -253,190 +253,305 @@ def import_main_data(conn, df):
 def populate_analytical_tables(conn):
     with conn.cursor() as cur:
         try:
-            # Clear existing data
-            cur.execute("TRUNCATE TABLE flight_risk_analysis, manager_performance_insights, promotion_readiness_analysis")
-
-            # Populate flight risk analysis - Fixed nested aggregation
+            # Clear all analytical tables
             cur.execute("""
-            WITH risk_groups AS (
+                TRUNCATE TABLE 
+                    flight_risk_analysis,
+                    manager_performance_insights,
+                    promotion_readiness_analysis,
+                    skills_gap_analysis,
+                    project_performance_metrics,
+                    compensation_analysis,
+                    department_analytics
+            """)
+            
+            # Flight risk analysis
+            cur.execute("""
+                WITH risk_groups AS (
+                    SELECT 
+                        CASE 
+                            WHEN flight_risk >= 70 THEN 'High'
+                            WHEN flight_risk >= 40 THEN 'Medium'
+                            ELSE 'Low'
+                        END as risk_level,
+                        department,
+                        primary_specialization,
+                        hire_date,
+                        performance_score,
+                        base_salary,
+                        actual_utilization
+                    FROM employees
+                ),
+                dept_counts AS (
+                    SELECT risk_level, department, COUNT(*) as dept_count
+                    FROM risk_groups
+                    GROUP BY risk_level, department
+                ),
+                spec_counts AS (
+                    SELECT risk_level, primary_specialization, COUNT(*) as spec_count
+                    FROM risk_groups
+                    GROUP BY risk_level, primary_specialization
+                )
+                INSERT INTO flight_risk_analysis
                 SELECT 
+                    rg.risk_level,
+                    COUNT(DISTINCT rg.department) as employee_count,
+                    AVG(DATE_PART('year', CURRENT_DATE) - DATE_PART('year', rg.hire_date)) as avg_tenure,
+                    AVG(rg.performance_score) as avg_performance,
+                    AVG(rg.base_salary) as avg_salary,
+                    AVG(rg.actual_utilization) as avg_utilization,
+                    (SELECT jsonb_object_agg(department, dept_count)
+                     FROM dept_counts dc
+                     WHERE dc.risk_level = rg.risk_level) as dept_distribution,
+                    (SELECT jsonb_object_agg(primary_specialization, spec_count)
+                     FROM spec_counts sc
+                     WHERE sc.risk_level = rg.risk_level) as common_specializations
+                FROM risk_groups rg
+                GROUP BY rg.risk_level
+            """)
+
+            # manager performance insights
+            cur.execute("""
+                WITH perf_categories AS (
+                    SELECT 
+                        e.employee_id,
+                        e.management_level,
+                        e.department,
+                        e.knowledge_sharing_score,
+                        e.avg_project_complexity,
+                        e.mentorship_hours,
+                        CASE 
+                            WHEN e.performance_score >= 4.5 THEN 'Top'
+                            WHEN e.performance_score >= 3.5 THEN 'Average'
+                            ELSE 'Below'
+                        END as performance_category
+                    FROM employees e
+                    WHERE e.is_manager = true
+                ),
+                team_metrics AS (
+                    SELECT 
+                        e.manager_id,
+                        AVG(e.performance_score) as team_performance,
+                        AVG(e.project_satisfaction) as team_satisfaction,
+                        1 - AVG(e.flight_risk/100) as team_retention,
+                        COUNT(*) as team_size
+                    FROM employees e
+                    GROUP BY e.manager_id
+                ),
+                dept_counts AS (
+                    SELECT 
+                        management_level,
+                        performance_category,
+                        department,
+                        COUNT(*) as dept_count
+                    FROM perf_categories
+                    GROUP BY management_level, performance_category, department
+                )
+                INSERT INTO manager_performance_insights
+                SELECT 
+                    pc.management_level,
+                    pc.performance_category,
+                    COUNT(DISTINCT pc.employee_id) as manager_count,
+                    AVG(tm.team_size) as avg_team_size,
+                    AVG(tm.team_performance) as avg_team_performance,
+                    AVG(tm.team_satisfaction) as avg_team_satisfaction,
+                    AVG(tm.team_retention) as avg_team_retention,
+                    (SELECT jsonb_object_agg(department, dept_count)
+                     FROM dept_counts dc
+                     WHERE dc.management_level = pc.management_level 
+                     AND dc.performance_category = pc.performance_category) as dept_distribution,
+                    jsonb_build_object(
+                        'avg_knowledge_sharing', AVG(pc.knowledge_sharing_score),
+                        'avg_project_complexity', AVG(pc.avg_project_complexity),
+                        'avg_mentorship_hours', AVG(pc.mentorship_hours)
+                    ) as success_factors
+                FROM perf_categories pc
+                LEFT JOIN team_metrics tm ON pc.employee_id = tm.manager_id
+                GROUP BY pc.management_level, pc.performance_category
+            """)
+
+            # promotion readiness analysis
+            cur.execute("""
+                WITH readiness_groups AS (
+                    SELECT 
+                        employee_id,
+                        CASE 
+                            WHEN promotion_readiness >= 80 THEN 'Ready Now'
+                            WHEN promotion_readiness >= 60 THEN 'Ready Soon'
+                            WHEN promotion_readiness >= 40 THEN 'Developing'
+                            ELSE 'Not Ready'
+                        END as readiness_band,
+                        level,
+                        department,
+                        primary_specialization,
+                        performance_score,
+                        knowledge_sharing_score,
+                        avg_project_complexity
+                    FROM employees
+                    WHERE level != 'senior'
+                ),
+                skill_counts AS (
+                    SELECT 
+                        readiness_band,
+                        level,
+                        primary_specialization,
+                        COUNT(*) as skill_count
+                    FROM readiness_groups
+                    GROUP BY readiness_band, level, primary_specialization
+                ),
+                dept_counts AS (
+                    SELECT 
+                        readiness_band,
+                        level,
+                        department,
+                        COUNT(*) as dept_count
+                    FROM readiness_groups
+                    GROUP BY readiness_band, level, department
+                )
+                INSERT INTO promotion_readiness_analysis
+                SELECT 
+                    rg.readiness_band,
+                    rg.level,
+                    COUNT(DISTINCT rg.employee_id) as employee_count,
+                    AVG(rg.performance_score) as avg_performance,
+                    AVG(rg.knowledge_sharing_score) as avg_knowledge_sharing,
+                    AVG(rg.avg_project_complexity) as avg_project_complexity,
+                    (SELECT jsonb_object_agg(primary_specialization, skill_count)
+                     FROM skill_counts sc
+                     WHERE sc.readiness_band = rg.readiness_band 
+                     AND sc.level = rg.level) as critical_skills,
+                    (SELECT jsonb_object_agg(department, dept_count)
+                     FROM dept_counts dc
+                     WHERE dc.readiness_band = rg.readiness_band 
+                     AND dc.level = rg.level) as dept_distribution
+                FROM readiness_groups rg
+                GROUP BY rg.readiness_band, rg.level
+            """)
+
+            # skills gap analysis
+            cur.execute("""
+                WITH skill_coverage AS (
+                    SELECT 
+                        department,
+                        primary_specialization as critical_skill,
+                        COUNT(*) * 100.0 / NULLIF(SUM(COUNT(*)) OVER (PARTITION BY department), 0) as current_coverage,
+                        CASE 
+                            WHEN department = 'Engineering Delivery' THEN 85
+                            WHEN department = 'Product Architecture' THEN 80
+                            ELSE 75
+                        END as required_coverage
+                    FROM employees
+                    GROUP BY department, primary_specialization
+                )
+                INSERT INTO skills_gap_analysis
+                SELECT 
+                    department,
+                    critical_skill,
+                    current_coverage,
+                    required_coverage,
                     CASE 
-                        WHEN flight_risk >= 70 THEN 'High'
-                        WHEN flight_risk >= 40 THEN 'Medium'
+                        WHEN (required_coverage - current_coverage) >= 20 THEN 'High'
+                        WHEN (required_coverage - current_coverage) >= 10 THEN 'Medium'
                         ELSE 'Low'
-                    END as risk_level,
-                    department,
-                    primary_specialization,
-                    hire_date,
-                    performance_score,
-                    base_salary,
-                    actual_utilization
-                FROM employees
-            ),
-            dept_counts AS (
-                SELECT 
-                    risk_level,
-                    department,
-                    COUNT(*) as dept_count
-                FROM risk_groups
-                GROUP BY risk_level, department
-            ),
-            spec_counts AS (
-                SELECT 
-                    risk_level,
-                    primary_specialization,
-                    COUNT(*) as spec_count
-                FROM risk_groups
-                GROUP BY risk_level, primary_specialization
-            )
-            INSERT INTO flight_risk_analysis
-            SELECT 
-                rg.risk_level,
-                COUNT(DISTINCT rg.department) as employee_count,
-                AVG(DATE_PART('year', CURRENT_DATE) - DATE_PART('year', rg.hire_date)) as avg_tenure,
-                AVG(rg.performance_score) as avg_performance,
-                AVG(rg.base_salary) as avg_salary,
-                AVG(rg.actual_utilization) as avg_utilization,
-                (
-                    SELECT jsonb_object_agg(department, dept_count)
-                    FROM dept_counts dc
-                    WHERE dc.risk_level = rg.risk_level
-                ) as dept_distribution,
-                (
-                    SELECT jsonb_object_agg(primary_specialization, spec_count)
-                    FROM spec_counts sc
-                    WHERE sc.risk_level = rg.risk_level
-                ) as common_specializations
-            FROM risk_groups rg
-            GROUP BY rg.risk_level
+                    END as gap_severity,
+                    (SELECT COUNT(DISTINCT e.active_projects)
+                     FROM employees e
+                     WHERE e.department = sc.department 
+                     AND e.primary_specialization = sc.critical_skill) as affected_projects,
+                    jsonb_build_object(
+                        'recommended_training', ARRAY['Technical Certification', 'Mentorship Program', 'External Training'],
+                        'estimated_time', '6 months',
+                        'priority', CASE 
+                            WHEN (required_coverage - current_coverage) >= 20 THEN 'High'
+                            WHEN (required_coverage - current_coverage) >= 10 THEN 'Medium'
+                            ELSE 'Low'
+                        END
+                    ) as training_recommendations
+                FROM skill_coverage sc
             """)
 
-            # Populate manager performance insights - Fixed nested aggregation
+            # project_performance_metrics
             cur.execute("""
-            WITH perf_categories AS (
+                WITH project_metrics AS (
+                    SELECT 
+                        department,
+                        ROUND(avg_project_complexity) as complexity_level,
+                        COUNT(*) as project_count,
+                        AVG(avg_project_duration) as avg_duration,
+                        AVG(projects_on_time) as success_rate,
+                        AVG(avg_team_size) as avg_team_size
+                    FROM employees
+                    WHERE active_projects > 0
+                    GROUP BY department, ROUND(avg_project_complexity)
+                )
+                INSERT INTO project_performance_metrics
                 SELECT 
-                    e.employee_id,
-                    e.management_level,
-                    e.department,
-                    e.knowledge_sharing_score,
-                    e.avg_project_complexity,
-                    e.mentorship_hours,
-                    CASE 
-                        WHEN e.performance_score >= 4.5 THEN 'Top'
-                        WHEN e.performance_score >= 3.5 THEN 'Average'
-                        ELSE 'Below'
-                    END as performance_category
-                FROM employees e
-                WHERE e.is_manager = true
-            ),
-            team_metrics AS (
-                SELECT 
-                    e.manager_id,
-                    AVG(e.performance_score) as team_performance,
-                    AVG(e.project_satisfaction) as team_satisfaction,
-                    1 - AVG(e.flight_risk/100) as team_retention,
-                    COUNT(*) as team_size
-                FROM employees e
-                GROUP BY e.manager_id
-            ),
-            dept_counts AS (
-                SELECT 
-                    management_level,
-                    performance_category,
+                    complexity_level::integer,
                     department,
-                    COUNT(*) as dept_count
-                FROM perf_categories
-                GROUP BY management_level, performance_category, department
-            )
-            INSERT INTO manager_performance_insights
-            SELECT 
-                pc.management_level,
-                pc.performance_category,
-                COUNT(DISTINCT pc.employee_id) as manager_count,
-                AVG(tm.team_size) as avg_team_size,
-                AVG(tm.team_performance) as avg_team_performance,
-                AVG(tm.team_satisfaction) as avg_team_satisfaction,
-                AVG(tm.team_retention) as avg_team_retention,
-                (
-                    SELECT jsonb_object_agg(department, dept_count)
-                    FROM dept_counts dc
-                    WHERE dc.management_level = pc.management_level
-                    AND dc.performance_category = pc.performance_category
-                ) as dept_distribution,
-                jsonb_build_object(
-                    'avg_knowledge_sharing', AVG(pc.knowledge_sharing_score),
-                    'avg_project_complexity', AVG(pc.avg_project_complexity),
-                    'avg_mentorship_hours', AVG(pc.mentorship_hours)
-                ) as success_factors
-            FROM perf_categories pc
-            LEFT JOIN team_metrics tm ON pc.employee_id = tm.manager_id
-            GROUP BY pc.management_level, pc.performance_category
+                    project_count,
+                    avg_duration,
+                    success_rate,
+                    avg_team_size,
+                    jsonb_build_object(
+                        'team_expertise', 'High',
+                        'clear_requirements', true,
+                        'stakeholder_engagement', 'Strong'
+                    ) as key_success_factors,
+                    jsonb_build_object(
+                        'resource_constraints', 'Medium',
+                        'technical_complexity', 'High',
+                        'timeline_pressure', 'Medium'
+                    ) as risk_factors
+                FROM project_metrics
             """)
 
-            # Populate promotion readiness analysis - Fixed nested aggregation
+            # compensation_analysis
             cur.execute("""
-            WITH readiness_groups AS (
+                WITH comp_metrics AS (
+                    SELECT 
+                        department,
+                        level,
+                        CASE 
+                            WHEN performance_score >= 4.5 THEN 'High'
+                            WHEN performance_score >= 3.5 THEN 'Medium'
+                            ELSE 'Low'
+                        END as performance_band,
+                        COUNT(*) as employee_count,
+                        AVG(base_salary) as avg_base_salary,
+                        AVG(total_comp) as avg_total_comp,
+                        MIN(base_salary) as min_salary,
+                        MAX(base_salary) as max_salary
+                    FROM employees
+                    GROUP BY department, level, 
+                        CASE 
+                            WHEN performance_score >= 4.5 THEN 'High'
+                            WHEN performance_score >= 3.5 THEN 'Medium'
+                            ELSE 'Low'
+                        END
+                )
+                INSERT INTO compensation_analysis
                 SELECT 
-                    employee_id,
+                    department,
+                    level,
+                    performance_band,
+                    employee_count,
+                    avg_base_salary,
+                    avg_total_comp,
+                    jsonb_build_object(
+                        'min', min_salary,
+                        'max', max_salary,
+                        'range', max_salary - min_salary
+                    ) as salary_range,
                     CASE 
-                        WHEN promotion_readiness >= 80 THEN 'Ready Now'
-                        WHEN promotion_readiness >= 60 THEN 'Ready Soon'
-                        WHEN promotion_readiness >= 40 THEN 'Developing'
-                        ELSE 'Not Ready'
-                    END as readiness_band,
-                    level,
-                    department,
-                    primary_specialization,
-                    performance_score,
-                    knowledge_sharing_score,
-                    avg_project_complexity
-                FROM employees
-                WHERE level != 'senior'
-            ),
-            skill_counts AS (
-                SELECT 
-                    readiness_band,
-                    level,
-                    primary_specialization,
-                    COUNT(*) as skill_count
-                FROM readiness_groups
-                GROUP BY readiness_band, level, primary_specialization
-            ),
-            dept_counts AS (
-                SELECT 
-                    readiness_band,
-                    level,
-                    department,
-                    COUNT(*) as dept_count
-                FROM readiness_groups
-                GROUP BY readiness_band, level, department
-            )
-            INSERT INTO promotion_readiness_analysis
-            SELECT 
-                rg.readiness_band,
-                rg.level,
-                COUNT(DISTINCT rg.employee_id) as employee_count,
-                AVG(rg.performance_score) as avg_performance,
-                AVG(rg.knowledge_sharing_score) as avg_knowledge_sharing,
-                AVG(rg.avg_project_complexity) as avg_project_complexity,
-                (
-                    SELECT jsonb_object_agg(primary_specialization, skill_count)
-                    FROM skill_counts sc
-                    WHERE sc.readiness_band = rg.readiness_band
-                    AND sc.level = rg.level
-                ) as critical_skills,
-                (
-                    SELECT jsonb_object_agg(department, dept_count)
-                    FROM dept_counts dc
-                    WHERE dc.readiness_band = rg.readiness_band
-                    AND dc.level = rg.level
-                ) as dept_distribution
-            FROM readiness_groups rg
-            GROUP BY rg.readiness_band, rg.level
+                        WHEN department = 'Engineering Delivery' THEN 1.1
+                        WHEN department = 'Product Architecture' THEN 1.15
+                        ELSE 1.0
+                    END as market_position
+                FROM comp_metrics
             """)
 
             conn.commit()
-            
+
         except Exception as e:
             conn.rollback()
             print(f"Error during import: {str(e)}")
