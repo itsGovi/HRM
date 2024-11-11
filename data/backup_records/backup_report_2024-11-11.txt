@@ -1,0 +1,18 @@
+Backup Report - 2024-11-11
+================================
+
+Code Changes:
+-------------
+M	"Integration Setup of PostgreSQL \342\206\222 VScode \342\206\222 GitHub/4.) Connecting Python to PostgreSQL.md"
+M	README (dude, seriously READ ME!).md
+M	data/backup_records/backup_report_2024-11-10.txt
+M	data/backup_records/database_changes/2024-11-10_db_changes.sql
+D	python/data_processing/database.py
+M	python/data_processing/db_setup_diagnostics.py
+M	python/data_processing/fake_data_generation_code.ipynb
+A	reports/hr_diagnostic_report_2024-11-11_14-36-08.md
+D	sql/queries/Question_1.sql
+
+Database Changes:
+-----------------
+Modified tables backed up: employees employee_analytics manager_analytics department_analytics
