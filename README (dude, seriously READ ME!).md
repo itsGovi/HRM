@@ -60,6 +60,13 @@ The project is structured as a sequential journey, with each section covering a 
 3. **Import the data** into PostgreSQL using the provided setup scripts.
 4. **Follow along with each section** to build the analysis system, referring to the README and code documentation as needed.
 
+## Setup
+
+1. Copy `.env.example` to `.env`
+2. Update `.env` with your database credentials
+3. Install dependencies
+4. Run the application
+
 ## Insights Gained and Next Steps
 
 Throughout this project, I learned the importance of understanding data structure, especially in HR analytics, and how critical it is to tailor datasets to specific business questions. By generating my own data, I gained a hands-on perspective of what goes into creating and managing a database, along with the complexities of analyzing HR metrics.

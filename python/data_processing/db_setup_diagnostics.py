@@ -3,13 +3,16 @@ import sys
 from datetime import datetime
 from io import StringIO
 import os
+from dotenv import load_dotenv
+
+load_dotenv()  # Load environment variables from.env file
 
 def get_db_connection():
     return psycopg2.connect(
-        dbname="hr_resource_db",
-        user="postgres",
-        password="1234",
-        host="localhost",
+        dbname= os.getenv("DB_NAME"),
+        user= os.getenv("DB_USER"),
+        password= os.getenv("DB_PASSWORD"),
+        host=os.getenv("DB_HOST"),
         port="5432"
     )
 
