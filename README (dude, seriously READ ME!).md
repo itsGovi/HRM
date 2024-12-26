@@ -72,9 +72,6 @@ The project is structured as a sequential journey, with each section covering a 
 Throughout this project, I learned the importance of understanding data structure, especially in HR analytics, and how critical it is to tailor datasets to specific business questions. By generating my own data, I gained a hands-on perspective of what goes into creating and managing a database, along with the complexities of analyzing HR metrics.
 
 In future projects, I plan to apply these skills to real-world HR data, improving my approach based on what I learned here. This journey has been an invaluable experience in building foundational skills in data generation, database management, and data-driven decision-making.
-
----
-
 Feel free to ask for clarifications or suggestions on this README.
 
 ### Files to Delete (if applicable)
